@@ -1,3 +1,4 @@
+import patch_torch
 import argparse
 import os
 import time

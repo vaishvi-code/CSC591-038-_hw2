@@ -1,3 +1,4 @@
+import patch_torch
 import argparse
 import os
 import time
@@ -22,7 +23,7 @@ def parse_args():
     parser.add_argument('--sizes', type=str, default='15,10,5', help='Neighbor sample sizes per layer, comma-separated')
     parser.add_argument('--eval_batch_size', type=int, default=4096)
     parser.add_argument('--epochs', type=int, default=20)
-    parser.add_argument('--num_workers', type=int, default=4)
+    parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--output_dir', type=str, default='./results/metrics')
     parser.add_argument('--exp_name', type=str, default='sage_baseline')
