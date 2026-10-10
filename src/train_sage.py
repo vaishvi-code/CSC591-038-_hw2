@@ -7,9 +7,9 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
-from torch_geometric.loader import NeighborLoader
 
 from models import GraphSAGE
+from sampler import FastTorchNeighborSampler
 
 
 def parse_args():
@@ -23,11 +23,18 @@ def parse_args():
     parser.add_argument('--sizes', type=str, default='15,10,5', help='Neighbor sample sizes per layer, comma-separated')
     parser.add_argument('--eval_batch_size', type=int, default=4096)
     parser.add_argument('--epochs', type=int, default=15)
-    parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--output_dir', type=str, default='./results/metrics')
     parser.add_argument('--exp_name', type=str, default='sage_baseline')
     return parser.parse_args()
+
+
+def iterate_batches(indices, batch_size, shuffle=True):
+    if shuffle:
+        perm = torch.randperm(len(indices), device=indices.device)
+        indices = indices[perm]
+    for i in range(0, len(indices), batch_size):
+        yield indices[i:i + batch_size]
 
 
 def main():
@@ -45,37 +52,17 @@ def main():
     dataset = PygNodePropPredDataset(name='ogbn-products', root=args.dataset_dir)
     data = dataset[0]
     split_idx = dataset.get_idx_split()
-    train_idx = split_idx['train']
-    val_idx = split_idx['valid']
-    test_idx = split_idx['test']
 
-    # Modern NeighborLoader (does NOT require torch-sparse)
-    train_loader = NeighborLoader(
-        data,
-        num_neighbors=sample_sizes,
-        input_nodes=train_idx,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers
-    )
+    train_idx = split_idx['train'].to(device)
+    val_idx = split_idx['valid'].to(device)
+    test_idx = split_idx['test'].to(device)
 
-    val_loader = NeighborLoader(
-        data,
-        num_neighbors=sample_sizes,
-        input_nodes=val_idx,
-        batch_size=args.eval_batch_size,
-        shuffle=False,
-        num_workers=args.num_workers
-    )
+    x = data.x.to(device)
+    y = data.y.squeeze(1).to(device)
 
-    test_loader = NeighborLoader(
-        data,
-        num_neighbors=sample_sizes,
-        input_nodes=test_idx,
-        batch_size=args.eval_batch_size,
-        shuffle=False,
-        num_workers=args.num_workers
-    )
+    print("Building high-speed GPU neighbor sampler index...")
+    sampler = FastTorchNeighborSampler(data.edge_index, data.num_nodes, device=device)
+    print("Graph sampler ready!")
 
     model = GraphSAGE(
         in_channels=data.num_features,
@@ -106,43 +93,54 @@ def main():
     best_test_acc = 0.0
 
     @torch.no_grad()
-    def evaluate(loader, desc="Eval"):
+    def evaluate(eval_indices, batch_size=4096):
         model.eval()
         correct = 0
-        total = 0
-        for batch in loader:
-            batch = batch.to(device)
-            out = model(batch.x, batch.edge_index)
-            pred = out[:batch.batch_size].argmax(dim=-1)
-            target = batch.y[:batch.batch_size].squeeze()
-            correct += int((pred == target).sum())
-            total += batch.batch_size
+        total = len(eval_indices)
+        for batch_seeds in iterate_batches(eval_indices, batch_size, shuffle=False):
+            ordered_nodes, sub_edge_index = sampler.sample(batch_seeds, sample_sizes)
+            batch_x = x[ordered_nodes]
+            batch_y = y[batch_seeds]
+
+            out = model(batch_x, sub_edge_index)
+            pred = out[:len(batch_seeds)].argmax(dim=-1)
+            correct += int((pred == batch_y).sum())
         return correct / total if total > 0 else 0.0
+
+    num_batches = (len(train_idx) + args.batch_size - 1) // args.batch_size
 
     for epoch in range(1, args.epochs + 1):
         epoch_start = time.time()
         model.train()
-        total_loss = 0
+        total_loss = 0.0
         total_correct = 0
         total_train_nodes = 0
 
-        for batch in train_loader:
-            batch = batch.to(device)
+        pbar = tqdm(iterate_batches(train_idx, args.batch_size, shuffle=True),
+                    total=num_batches, desc=f"Epoch {epoch:02d}")
+
+        for batch_seeds in pbar:
+            ordered_nodes, sub_edge_index = sampler.sample(batch_seeds, sample_sizes)
+            batch_x = x[ordered_nodes]
+            batch_y = y[batch_seeds]
+
             optimizer.zero_grad()
-            out = model(batch.x, batch.edge_index)
+            out = model(batch_x, sub_edge_index)
+            target_out = out[:len(batch_seeds)]
 
-            # Target seed nodes are placed at the beginning
-            target_out = out[:batch.batch_size]
-            target_y = batch.y[:batch.batch_size].squeeze()
-
-            loss = F.nll_loss(target_out, target_y)
+            loss = F.nll_loss(target_out, batch_y)
             loss.backward()
             optimizer.step()
 
-            bs = batch.batch_size
+            bs = len(batch_seeds)
             total_loss += loss.item() * bs
-            total_correct += int((target_out.argmax(dim=-1) == target_y).sum())
+            total_correct += int((target_out.argmax(dim=-1) == batch_y).sum())
             total_train_nodes += bs
+
+            pbar.set_postfix({
+                'loss': f"{total_loss / total_train_nodes:.4f}",
+                'train_acc': f"{(total_correct / total_train_nodes) * 100:.2f}%"
+            })
 
         train_loss = total_loss / total_train_nodes
         train_acc = total_correct / total_train_nodes
@@ -150,11 +148,11 @@ def main():
         history['epoch_times'].append(epoch_time)
 
         # Evaluate validation
-        val_acc = evaluate(val_loader, desc="Val")
-        
+        val_acc = evaluate(val_idx, batch_size=args.eval_batch_size)
+
         # Evaluate test if best val or last epoch
         if val_acc > best_val_acc or epoch == args.epochs or epoch == 1:
-            test_acc = evaluate(test_loader, desc="Test")
+            test_acc = evaluate(test_idx, batch_size=args.eval_batch_size)
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 best_test_acc = test_acc
@@ -167,7 +165,7 @@ def main():
         history['val_acc'].append(val_acc)
         history['test_acc'].append(test_acc)
 
-        print(f"Epoch: {epoch:02d} | Time: {epoch_time:.2f}s | "
+        print(f"Epoch {epoch:02d} Summary: Time {epoch_time:.2f}s | "
               f"Loss: {train_loss:.4f} | Train Acc: {train_acc*100:.2f}% | "
               f"Val Acc: {val_acc*100:.2f}% | Test Acc: {test_acc*100:.2f}%")
 
