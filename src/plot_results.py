@@ -155,10 +155,32 @@ def plot_sage_results(metrics_dir, output_dir):
         ax.set_title('GraphSAGE Performance vs. Batch Size')
         ax.legend()
         plt.tight_layout()
-        save_path = os.path.join(output_dir, "sage_batch_ablation.png")
+        print(f"Saved: {save_path}")
+
+    # SAGE Neighbor Sampling Fanout Ablation
+    sampling_files = glob.glob(os.path.join(metrics_dir, "sage_sampling_*.json"))
+    if sampling_files:
+        sizes_labels, val_accs, test_accs = [], [], []
+        for p in sorted(sampling_files):
+            with open(p, 'r') as f:
+                d = json.load(f)
+                sizes_labels.append(d['config']['sizes'])
+                val_accs.append(d['best_val_acc'] * 100)
+                test_accs.append(d['best_test_acc'] * 100)
+
+        fig, ax = plt.subplots(figsize=(7, 5))
+        ax.plot(sizes_labels, val_accs, marker='o', label='Val Acc', color='#ff7f0e', linewidth=2)
+        ax.plot(sizes_labels, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2)
+        ax.set_xlabel('Layer-wise Sample Sizes (Fanout)')
+        ax.set_ylabel('Accuracy (%)')
+        ax.set_title('GraphSAGE Performance vs. Neighbor Sampling Size')
+        ax.legend()
+        plt.tight_layout()
+        save_path = os.path.join(output_dir, "sage_sampling_ablation.png")
         plt.savefig(save_path, dpi=300)
         plt.close()
         print(f"Saved: {save_path}")
+
 
 
 def plot_comparative_profiling(metrics_dir, output_dir):
