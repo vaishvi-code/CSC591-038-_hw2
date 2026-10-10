@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from tqdm import tqdm
 from ogb.nodeproppred import PygNodePropPredDataset, Evaluator
-from torch_geometric.loader import NeighborSampler
+from torch_geometric.loader import NeighborLoader
 
 from models import GraphSAGE
 
@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1024, help='Mini-batch size')
     parser.add_argument('--sizes', type=str, default='15,10,5', help='Neighbor sample sizes per layer, comma-separated')
     parser.add_argument('--eval_batch_size', type=int, default=4096)
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=15)
     parser.add_argument('--num_workers', type=int, default=2)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
     parser.add_argument('--output_dir', type=str, default='./results/metrics')
@@ -46,17 +46,34 @@ def main():
     data = dataset[0]
     split_idx = dataset.get_idx_split()
     train_idx = split_idx['train']
+    val_idx = split_idx['valid']
+    test_idx = split_idx['test']
 
-    train_loader = NeighborSampler(
-        data.edge_index, node_idx=train_idx,
-        sizes=sample_sizes, batch_size=args.batch_size,
-        shuffle=True, num_workers=args.num_workers
+    # Modern NeighborLoader (does NOT require torch-sparse)
+    train_loader = NeighborLoader(
+        data,
+        num_neighbors=sample_sizes,
+        input_nodes=train_idx,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers
     )
 
-    # Subgraph loader for layer-by-layer evaluation
-    subgraph_loader = NeighborSampler(
-        data.edge_index, node_idx=None, sizes=[-1],
-        batch_size=args.eval_batch_size, shuffle=False,
+    val_loader = NeighborLoader(
+        data,
+        num_neighbors=sample_sizes,
+        input_nodes=val_idx,
+        batch_size=args.eval_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers
+    )
+
+    test_loader = NeighborLoader(
+        data,
+        num_neighbors=sample_sizes,
+        input_nodes=test_idx,
+        batch_size=args.eval_batch_size,
+        shuffle=False,
         num_workers=args.num_workers
     )
 
@@ -68,11 +85,7 @@ def main():
         dropout=args.dropout
     ).to(device)
 
-    evaluator = Evaluator(name='ogbn-products')
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-    x = data.x
-    y = data.y.squeeze(1).to(device)
 
     history = {
         'epoch': [],
@@ -89,6 +102,22 @@ def main():
         torch.cuda.reset_peak_memory_stats(device)
 
     total_start_time = time.time()
+    best_val_acc = 0.0
+    best_test_acc = 0.0
+
+    @torch.no_grad()
+    def evaluate(loader, desc="Eval"):
+        model.eval()
+        correct = 0
+        total = 0
+        for batch in loader:
+            batch = batch.to(device)
+            out = model(batch.x, batch.edge_index)
+            pred = out[:batch.batch_size].argmax(dim=-1)
+            target = batch.y[:batch.batch_size].squeeze()
+            correct += int((pred == target).sum())
+            total += batch.batch_size
+        return correct / total if total > 0 else 0.0
 
     for epoch in range(1, args.epochs + 1):
         epoch_start = time.time()
@@ -97,41 +126,40 @@ def main():
         total_correct = 0
         total_train_nodes = 0
 
-        for batch_size, n_id, adjs in train_loader:
-            # Transfer batch subgraph data to device
-            adjs = [adj.to(device) for adj in adjs]
-            batch_x = x[n_id].to(device)
-            batch_y = y[n_id[:batch_size]]
-
+        for batch in train_loader:
+            batch = batch.to(device)
             optimizer.zero_grad()
-            out = model(batch_x, adjs)
-            loss = F.nll_loss(out, batch_y)
+            out = model(batch.x, batch.edge_index)
+
+            # Target seed nodes are placed at the beginning
+            target_out = out[:batch.batch_size]
+            target_y = batch.y[:batch.batch_size].squeeze()
+
+            loss = F.nll_loss(target_out, target_y)
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item() * batch_size
-            total_correct += int((out.argmax(dim=-1) == batch_y).sum())
-            total_train_nodes += batch_size
+            bs = batch.batch_size
+            total_loss += loss.item() * bs
+            total_correct += int((target_out.argmax(dim=-1) == target_y).sum())
+            total_train_nodes += bs
 
         train_loss = total_loss / total_train_nodes
         train_acc = total_correct / total_train_nodes
         epoch_time = time.time() - epoch_start
         history['epoch_times'].append(epoch_time)
 
-        # Evaluation via layer-by-layer inference
-        model.eval()
-        with torch.no_grad():
-            out_all = model.inference(x, subgraph_loader, device)
-            y_pred = out_all.argmax(dim=-1, keepdim=True).cpu()
-
-            val_acc = evaluator.eval({
-                'y_true': data.y[split_idx['valid']],
-                'y_pred': y_pred[split_idx['valid']],
-            })['acc']
-            test_acc = evaluator.eval({
-                'y_true': data.y[split_idx['test']],
-                'y_pred': y_pred[split_idx['test']],
-            })['acc']
+        # Evaluate validation
+        val_acc = evaluate(val_loader, desc="Val")
+        
+        # Evaluate test if best val or last epoch
+        if val_acc > best_val_acc or epoch == args.epochs or epoch == 1:
+            test_acc = evaluate(test_loader, desc="Test")
+            if val_acc > best_val_acc:
+                best_val_acc = val_acc
+                best_test_acc = test_acc
+        else:
+            test_acc = best_test_acc
 
         history['epoch'].append(epoch)
         history['train_loss'].append(train_loss)
@@ -154,11 +182,11 @@ def main():
     history['peak_memory_mb'] = peak_mem
     history['total_time_sec'] = total_time
     history['avg_epoch_time_sec'] = sum(history['epoch_times']) / len(history['epoch_times'])
-    history['best_val_acc'] = max(history['val_acc'])
-    history['best_test_acc'] = history['test_acc'][history['val_acc'].index(history['best_val_acc'])]
+    history['best_val_acc'] = best_val_acc
+    history['best_test_acc'] = best_test_acc
 
     print(f"\nCompleted in {total_time:.2f}s | Peak Memory: {peak_mem:.2f} MB")
-    print(f"Best Validation Accuracy: {history['best_val_acc']*100:.2f}% (Test: {history['best_test_acc']*100:.2f}%)")
+    print(f"Best Validation Accuracy: {best_val_acc*100:.2f}% (Test: {best_test_acc*100:.2f}%)")
 
     # Save metrics JSON
     output_path = os.path.join(args.output_dir, f"{args.exp_name}.json")

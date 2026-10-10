@@ -81,40 +81,18 @@ class GraphSAGE(nn.Module):
         for bn in self.bns:
             bn.reset_parameters()
 
-    def forward(self, x, adjs):
+    def forward(self, x, edge_index):
         """
-        Forward pass for mini-batch neighbor-sampled subgraphs.
-        adjs is a list of (edge_index, e_id, size) tuples from NeighborSampler.
+        Forward pass on sampled subgraph from NeighborLoader.
+        x: features of all sampled nodes in the batch
+        edge_index: sampled subgraph edges
         """
-        for i, (edge_index, _, size) in enumerate(adjs):
-            x_target = x[:size[1]]  # Target nodes are at the front
-            x = self.convs[i]((x, x_target), edge_index)
-            if i != self.num_layers - 1:
-                if len(self.bns) > i:
-                    x = self.bns[i](x)
-                x = F.relu(x)
-                x = F.dropout(x, p=self.dropout, training=self.training)
+        for i in range(self.num_layers - 1):
+            x = self.convs[i](x, edge_index)
+            if len(self.bns) > i:
+                x = self.bns[i](x)
+            x = F.relu(x)
+            x = F.dropout(x, p=self.dropout, training=self.training)
+        x = self.convs[-1](x, edge_index)
         return x.log_softmax(dim=-1)
 
-    @torch.no_grad()
-    def inference(self, x_all, subgraph_loader, device):
-        """
-        Layer-by-layer inference on full graph without neighborhood explosion.
-        Avoids computing all sampled trees for every test node.
-        """
-        for i in range(self.num_layers):
-            xs = []
-            for batch_size, n_id, adj in subgraph_loader:
-                edge_index, _, size = adj.to(device)
-                x = x_all[n_id].to(device)
-                x_target = x[:size[1]]
-                x = self.convs[i]((x, x_target), edge_index)
-                if i != self.num_layers - 1:
-                    if len(self.bns) > i:
-                        x = self.bns[i](x)
-                    x = F.relu(x)
-                xs.append(x.cpu())
-
-            x_all = torch.cat(xs, dim=0)
-
-        return x_all.log_softmax(dim=-1)
