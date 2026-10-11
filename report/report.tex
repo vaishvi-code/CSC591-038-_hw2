@@ -8,6 +8,9 @@
 \usepackage{subcaption}
 \usepackage{microtype}
 
+% Support finding figures in plots/, ../results/plots/, results/plots/, or current dir
+\graphicspath{{plots/}{../results/plots/}{results/plots/}{./}}
+
 \title{\textbf{CSC 591/791 Homework 2: GCN vs. GraphSAGE \& Scalability Analysis}}
 \author{Deep Graph Learning | Scalability, Mini-Batching, and Convergence}
 \date{October 2026}
@@ -27,7 +30,7 @@ Full-batch GCN was trained on the \texttt{ogbn-arxiv} citation network ($|V| = 1
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{../results/plots/gcn_convergence.png}
+    \includegraphics[width=\linewidth]{gcn_convergence.png}
     \caption{Training, validation, and test loss and accuracy curves for 3-layer GCN on \texttt{ogbn-arxiv} over 100 epochs.}
     \label{fig:gcn_conv}
 \end{figure}
@@ -39,10 +42,10 @@ As visualized in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid, monotonic conver
 
 \begin{table}[htbp]
 \centering
-\small
 \caption{GCN Depth ($L$) and Learning Rate ($\eta$) Sensitivity on \texttt{ogbn-arxiv}.}
 \label{tab:gcn_ablation}
-\begin{tabular}{lccccc}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
 \toprule
 \textbf{Configuration} & \textbf{Val (\%)} & \textbf{Test (\%)} & \textbf{Mem (MB)} & \textbf{Time (s/ep)} \\
 \midrule
@@ -57,18 +60,19 @@ LR $\eta = 0.005$ & 71.63 & 70.87 & 6030.5 & 0.0135 \\
 \textbf{LR $\eta = 0.010$ (Base)} & \textbf{71.82} & \textbf{71.30} & 6030.5 & 0.0145 \\
 LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../results/plots/gcn_depth_ablation.png}
+        \includegraphics[width=\linewidth]{gcn_depth_ablation.png}
         \caption{Impact of Depth ($L$)}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../results/plots/gcn_lr_ablation.png}
+        \includegraphics[width=\linewidth]{gcn_lr_ablation.png}
         \caption{Impact of LR ($\eta$)}
     \end{subfigure}
     \caption{GCN accuracy vs. model depth and learning rate.}
@@ -76,11 +80,11 @@ LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
 \end{figure}
 
 \paragraph{Impact of Model Depth ($L$):} 
-Increasing depth from $L=2$ to $L=3$ expands the receptive field, improving test accuracy from $69.66\%$ to $71.30\%$. However, increasing depth further ($L=4, 5, 6$) causes monotonic performance degradation down to $69.72\%$ (Table~\ref{tab:gcn_ablation}). This deterioration is attributed to the \textit{oversmoothing problem}: recursive normalized Laplacian smoothing:
+Increasing depth from $L=2$ to $L=3$ expands the receptive field, improving test accuracy from $69.66\%$ to $71.30\%$. However, increasing depth further ($L=4, 5, 6$) causes monotonic performance degradation down to $69.72\%$ (Table~\ref{tab:gcn_ablation}). This deterioration is attributed to the \textit{oversmoothing problem}: recursive normalized Laplacian smoothing acts as a low-pass filter on graph signals:
 \begin{equation}
 H^{(l+1)} = \sigma\left(\tilde{D}^{-\frac{1}{2}}\tilde{A}\tilde{D}^{-\frac{1}{2}} H^{(l)} W^{(l)}\right)
 \end{equation}
-acts as a low-pass filter on graph signals. As $L \to \infty$, node representations converge to the dominant stationary eigenvector proportional to node degree, collapsing feature distinguishability across classes. Peak memory also grows linearly from 5,445 MB ($L=2$) to 7,788 MB ($L=6$) due to storing full activation maps across all layers.
+As $L \to \infty$, node representations converge to a stationary distribution proportional to node degree, collapsing feature distinguishability across classes. Peak memory also grows linearly from 5,445 MB ($L=2$) to 7,788 MB ($L=6$) due to storing full activation maps across all layers.
 
 \paragraph{Impact of Learning Rate ($\eta$):}
 A small learning rate ($\eta = 0.001$) converges sluggishly within 80 epochs, underfitting at $67.71\%$ test accuracy. Conversely, an aggressive learning rate ($\eta = 0.05$) induces gradient oscillations and settles into sub-optimal local minima ($68.17\%$). Optimal performance is achieved at $\eta = 0.01$ ($71.30\%$).
@@ -92,7 +96,7 @@ To evaluate scalability, mini-batch GraphSAGE was evaluated on the large-scale \
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{../results/plots/sage_convergence.png}
+    \includegraphics[width=\linewidth]{sage_convergence.png}
     \caption{GraphSAGE loss and accuracy over 15 epochs on \texttt{ogbn-products} ($B=1024, S=[15,10,5]$).}
     \label{fig:sage_conv}
 \end{figure}
@@ -104,10 +108,10 @@ Figure~\ref{fig:sage_conv} demonstrates steady convergence across 15 epochs. Gra
 
 \begin{table}[htbp]
 \centering
-\small
 \caption{GraphSAGE Batch Size ($B$) and Fanout ($S$) Ablation on \texttt{ogbn-products}.}
 \label{tab:sage_ablation}
-\begin{tabular}{lccccc}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lcccc}
 \toprule
 \textbf{Configuration} & \textbf{Val (\%)} & \textbf{Test (\%)} & \textbf{Mem (MB)} & \textbf{Time (s/ep)} \\
 \midrule
@@ -119,18 +123,19 @@ Fanout $S=[5, 5, 5]$ & 89.05 & 75.92 & \textbf{3735.0} & \textbf{16.92} \\
 Fanout $S=[10, 10, 5]$ & 90.37 & 77.24 & 6152.9 & 46.77 \\
 \textbf{Fanout $S=[15, 10, 5]$} & \textbf{91.61} & \textbf{78.61} & 7109.7 & 60.64 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../results/plots/sage_batch_ablation.png}
+        \includegraphics[width=\linewidth]{sage_batch_ablation.png}
         \caption{Batch Size ($B$)}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.48\linewidth}
-        \includegraphics[width=\linewidth]{../results/plots/sage_sampling_ablation.png}
+        \includegraphics[width=\linewidth]{sage_sampling_ablation.png}
         \caption{Neighbor Fanout ($S$)}
     \end{subfigure}
     \caption{GraphSAGE sensitivity to batch size and fanout.}
@@ -147,9 +152,9 @@ Varying the sampling budget reveals a dramatic efficiency-accuracy trade-off (Ta
 
 \begin{table}[htbp]
 \centering
-\small
 \caption{System Profile: Full-Batch GCN vs. Mini-Batch GraphSAGE.}
 \label{tab:comparative_profile}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcc}
 \toprule
 \textbf{Metric} & \textbf{Full-Batch GCN} & \textbf{Mini-Batch GraphSAGE} \\
@@ -162,12 +167,13 @@ Peak GPU Memory & 6,030.5 MB & 7,109.7 MB (or 3,735.0 MB) \\
 Avg Epoch Runtime & 0.0145 s & 60.64 s (or 16.92 s) \\
 Test Accuracy & 71.30\% & 78.61\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \begin{figure}[htbp]
     \centering
-    \includegraphics[width=\linewidth]{../results/plots/comparative_profiling.png}
+    \includegraphics[width=\linewidth]{comparative_profiling.png}
     \caption{Comparative memory consumption and epoch runtime between Full-Batch GCN and Mini-Batch GraphSAGE.}
     \label{fig:profiling}
 \end{figure}
