@@ -155,6 +155,9 @@ def plot_sage_results(metrics_dir, output_dir):
         ax.set_title('GraphSAGE Performance vs. Batch Size')
         ax.legend()
         plt.tight_layout()
+        save_path = os.path.join(output_dir, "sage_batch_ablation.png")
+        plt.savefig(save_path, dpi=300)
+        plt.close()
         print(f"Saved: {save_path}")
 
     # SAGE Neighbor Sampling Fanout Ablation
