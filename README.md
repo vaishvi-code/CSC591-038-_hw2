@@ -55,42 +55,53 @@ CSC591-038-_hw2/
 pip install -r requirements.txt
 ```
 
-### 2. Task 1: Full-Batch GCN on `ogbn-arxiv`
+### 2. Task 1: Full-Batch GCN on `ogbn-arxiv` (Table 1, Figures 1 & 2)
 ```bash
-# Baseline GCN (Depth 3, LR 0.01)
+# Baseline GCN Reference (Depth 3, LR 0.01, 100 epochs) -> Fig 1, Table 1
 python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 100 --exp_name gcn_baseline
 
-# Depth Analysis (e.g. 2, 4, 5, 6)
-python src/train_gcn.py --num_layers 2 --exp_name gcn_depth_2
-python src/train_gcn.py --num_layers 4 --exp_name gcn_depth_4
+# 5-Seed Variance Evaluation (Seeds 42-46) -> Table 3
+for seed in 42 43 44 45 46; do
+  python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 100 --seed $seed --exp_name gcn_seed_$seed
+done
 
-# Learning Rate Analysis (e.g. 0.001, 0.005, 0.05)
-python src/train_gcn.py --lr 0.001 --exp_name gcn_lr_0.001
-python src/train_gcn.py --lr 0.05 --exp_name gcn_lr_0.05
+# Depth Sensitivity (L = 2, 4, 5, 6; 80 epochs) -> Table 1, Fig 2(a)
+python src/train_gcn.py --num_layers 2 --epochs 80 --exp_name gcn_depth_2
+python src/train_gcn.py --num_layers 4 --epochs 80 --exp_name gcn_depth_4
+python src/train_gcn.py --num_layers 5 --epochs 80 --exp_name gcn_depth_5
+python src/train_gcn.py --num_layers 6 --epochs 80 --exp_name gcn_depth_6
+
+# Learning Rate Sensitivity (eta = 0.001, 0.005, 0.05; 80 epochs) -> Table 1, Fig 2(b)
+python src/train_gcn.py --lr 0.001 --epochs 80 --exp_name gcn_lr_0.001
+python src/train_gcn.py --lr 0.005 --epochs 80 --exp_name gcn_lr_0.005
+python src/train_gcn.py --lr 0.050 --epochs 80 --exp_name gcn_lr_0.05
 ```
 
-### 3. Task 2: Mini-Batch GraphSAGE on `ogbn-products`
+### 3. Task 2: Mini-Batch GraphSAGE on `ogbn-products` (Table 2, Figures 3 & 4)
 ```bash
-# Baseline GraphSAGE (Fanout 15,10,5, Batch Size 1024)
+# Baseline GraphSAGE Reference (Fanout 15,10,5, Batch Size 1024, 15 epochs) -> Fig 3, Table 2
 python src/train_sage.py --num_layers 3 --sizes 15,10,5 --batch_size 1024 --epochs 15 --exp_name sage_baseline
 
-# Batch Size Sensitivity (e.g. 512, 2048, 4096)
-python src/train_sage.py --batch_size 512 --exp_name sage_batch_512
-python src/train_sage.py --batch_size 2048 --exp_name sage_batch_2048
+# Batch Size Sensitivity (B = 512, 2048; 5 epochs) -> Table 2, Fig 4(a)
+python src/train_sage.py --batch_size 512 --epochs 5 --exp_name sage_batch_512
+python src/train_sage.py --batch_size 2048 --epochs 5 --exp_name sage_batch_2048
 
-# Neighbor Sample Size Sensitivity (e.g. 5,5,5 vs 10,10,5)
-python src/train_sage.py --sizes 5,5,5 --exp_name sage_sampling_5_5_5
-python src/train_sage.py --sizes 10,10,5 --exp_name sage_sampling_10_10_5
+# Neighbor Sample Fanout Sensitivity (5 epochs) -> Table 2, Fig 4(b)
+python src/train_sage.py --sizes 5,5,5 --epochs 5 --exp_name sage_sampling_5_5_5
+python src/train_sage.py --sizes 5,5,15 --epochs 5 --exp_name sage_sampling_5_5_15
+python src/train_sage.py --sizes 15,5,5 --epochs 5 --exp_name sage_sampling_15_5_5
+python src/train_sage.py --sizes 10,10,5 --epochs 5 --exp_name sage_sampling_10_10_5
 ```
 
-### 4. Task 3: Generate Figures & Comparative Profiling
+### 4. Task 3: Generate Figures & Comparative Profiling (Table 3, Figure 5)
 ```bash
 python src/plot_results.py
 ```
 This generates:
-- `gcn_convergence.png`: Training/Validation/Test loss & accuracy over epochs.
-- `gcn_depth_ablation.png`: Accuracy vs number of GCN layers.
-- `gcn_lr_ablation.png`: Accuracy vs learning rate.
-- `sage_convergence.png`: GraphSAGE loss and accuracy curves.
-- `sage_batch_ablation.png`: Accuracy vs batch size.
-- `comparative_profiling.png`: Peak memory consumption & average runtime per epoch comparison.
+- `gcn_convergence.png`: Training/Validation/Test loss & accuracy over 100 epochs (Fig 1).
+- `gcn_depth_ablation.png`: Accuracy vs number of GCN layers (Fig 2a).
+- `gcn_lr_ablation.png`: Accuracy vs learning rate on log scale (Fig 2b).
+- `sage_convergence.png`: GraphSAGE loss and train/val/test accuracy curves (Fig 3).
+- `sage_batch_ablation.png`: GraphSAGE accuracy vs mini-batch size (Fig 4a).
+- `sage_sampling_ablation.png`: GraphSAGE accuracy vs neighbor sampling fanouts (Fig 4b).
+- `comparative_profiling.png`: Peak GPU memory & epoch runtime (log scale) cross-benchmark comparison (Fig 5).
