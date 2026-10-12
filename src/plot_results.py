@@ -5,12 +5,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Set high-visibility publication font scale
-sns.set_theme(style="whitegrid", font_scale=1.35)
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['axes.labelsize'] = 13
-plt.rcParams['xtick.labelsize'] = 11
-plt.rcParams['ytick.labelsize'] = 11
-plt.rcParams['legend.fontsize'] = 11
+sns.set_theme(style="whitegrid", font_scale=1.5)
+plt.rcParams['axes.titlesize'] = 16
+plt.rcParams['axes.labelsize'] = 15
+plt.rcParams['xtick.labelsize'] = 13
+plt.rcParams['ytick.labelsize'] = 13
+plt.rcParams['legend.fontsize'] = 13
+plt.rcParams['lines.linewidth'] = 2.5
+plt.rcParams['lines.markersize'] = 8
 
 
 
@@ -25,21 +27,21 @@ def plot_gcn_convergence(metrics_dir, output_dir):
 
     epochs = data['epoch']
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
     # Loss curve
-    ax1.plot(epochs, data['train_loss'], label='Train Loss', color='#1f77b4', linewidth=2)
-    ax1.plot(epochs, data['val_loss'], label='Val Loss', color='#ff7f0e', linewidth=2)
-    ax1.plot(epochs, data['test_loss'], label='Test Loss', color='#2ca02c', linestyle='--', linewidth=2)
+    ax1.plot(epochs, data['train_loss'], label='Train Loss', color='#1f77b4', linewidth=2.5)
+    ax1.plot(epochs, data['val_loss'], label='Val Loss', color='#ff7f0e', linewidth=2.5)
+    ax1.plot(epochs, data['test_loss'], label='Test Loss', color='#2ca02c', linestyle='--', linewidth=2.5)
     ax1.set_xlabel('Epoch')
     ax1.set_ylabel('Loss')
     ax1.set_title('GCN Convergence: Cross-Entropy Loss')
     ax1.legend()
 
     # Accuracy curve
-    ax2.plot(epochs, [a * 100 for a in data['train_acc']], label='Train Acc', color='#1f77b4', linewidth=2)
-    ax2.plot(epochs, [a * 100 for a in data['val_acc']], label='Val Acc', color='#ff7f0e', linewidth=2)
-    ax2.plot(epochs, [a * 100 for a in data['test_acc']], label='Test Acc', color='#2ca02c', linestyle='--', linewidth=2)
+    ax2.plot(epochs, [a * 100 for a in data['train_acc']], label='Train Acc', color='#1f77b4', linewidth=2.5)
+    ax2.plot(epochs, [a * 100 for a in data['val_acc']], label='Val Acc', color='#ff7f0e', linewidth=2.5)
+    ax2.plot(epochs, [a * 100 for a in data['test_acc']], label='Test Acc', color='#2ca02c', linestyle='--', linewidth=2.5)
     ax2.set_xlabel('Epoch')
     ax2.set_ylabel('Accuracy (%)')
     ax2.set_title('GCN Convergence: Accuracy (%)')
@@ -70,9 +72,9 @@ def plot_gcn_ablations(metrics_dir, output_dir):
         sorted_pairs = sorted(zip(depths, val_accs, test_accs))
         depths, val_accs, test_accs = zip(*sorted_pairs)
 
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.plot(depths, val_accs, marker='o', label='Best Validation Acc', color='#ff7f0e', linewidth=2)
-        ax.plot(depths, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2)
+        fig, ax = plt.subplots(figsize=(7.5, 5.8))
+        ax.plot(depths, val_accs, marker='o', label='Best Validation Acc', color='#ff7f0e', linewidth=2.5, markersize=8)
+        ax.plot(depths, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2.5, markersize=8)
         ax.set_xlabel('Model Depth (Number of Layers)')
         ax.set_ylabel('Accuracy (%)')
         ax.set_title('GCN Performance vs. Model Depth')
@@ -96,9 +98,9 @@ def plot_gcn_ablations(metrics_dir, output_dir):
         sorted_pairs = sorted(zip(lrs, val_accs, test_accs))
         lrs, val_accs, test_accs = zip(*sorted_pairs)
 
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.plot(lrs, val_accs, marker='o', label='Best Validation Acc', color='#ff7f0e', linewidth=2)
-        ax.plot(lrs, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2)
+        fig, ax = plt.subplots(figsize=(7.5, 5.8))
+        ax.plot(lrs, val_accs, marker='o', label='Best Validation Acc', color='#ff7f0e', linewidth=2.5, markersize=8)
+        ax.plot(lrs, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2.5, markersize=8)
         ax.set_xscale('log')
         ax.set_xlabel('Learning Rate (log scale)')
         ax.set_ylabel('Accuracy (%)')
@@ -118,17 +120,17 @@ def plot_sage_results(metrics_dir, output_dir):
             data = json.load(f)
 
         epochs = data['epoch']
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
-        ax1.plot(epochs, data['train_loss'], label='Train Loss', color='#d62728', linewidth=2)
+        ax1.plot(epochs, data['train_loss'], label='Train Loss', color='#d62728', linewidth=2.5)
         ax1.set_xlabel('Epoch')
         ax1.set_ylabel('Loss')
-        ax1.set_title('GraphSAGE Convergence: Cross-Entropy Loss')
+        ax1.set_title('GraphSAGE Convergence: Training Loss')
         ax1.legend()
 
-        ax2.plot(epochs, [a * 100 for a in data['train_acc']], label='Train Acc', color='#1f77b4', linewidth=2)
-        ax2.plot(epochs, [a * 100 for a in data['val_acc']], label='Val Acc', color='#ff7f0e', linewidth=2)
-        ax2.plot(epochs, [a * 100 for a in data['test_acc']], label='Test Acc', color='#2ca02c', linestyle='--', linewidth=2)
+        ax2.plot(epochs, [a * 100 for a in data['train_acc']], label='Train Acc', color='#1f77b4', linewidth=2.5)
+        ax2.plot(epochs, [a * 100 for a in data['val_acc']], label='Val Acc', color='#ff7f0e', linewidth=2.5)
+        ax2.plot(epochs, [a * 100 for a in data['test_acc']], label='Test Acc', color='#2ca02c', linestyle='--', linewidth=2.5)
         ax2.set_xlabel('Epoch')
         ax2.set_ylabel('Accuracy (%)')
         ax2.set_title('GraphSAGE Accuracy (%) over Epochs')
@@ -154,9 +156,9 @@ def plot_sage_results(metrics_dir, output_dir):
         sorted_pairs = sorted(zip(batches, val_accs, test_accs))
         batches, val_accs, test_accs = zip(*sorted_pairs)
 
-        fig, ax = plt.subplots(figsize=(7, 5))
-        ax.plot([str(b) for b in batches], val_accs, marker='o', label='Val Acc', color='#ff7f0e', linewidth=2)
-        ax.plot([str(b) for b in batches], test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2)
+        fig, ax = plt.subplots(figsize=(7.5, 5.8))
+        ax.plot([str(b) for b in batches], val_accs, marker='o', label='Val Acc', color='#ff7f0e', linewidth=2.5, markersize=8)
+        ax.plot([str(b) for b in batches], test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2.5, markersize=8)
         ax.set_xlabel('Batch Size')
         ax.set_ylabel('Accuracy (%)')
         ax.set_title('GraphSAGE Performance vs. Batch Size')
@@ -192,12 +194,12 @@ def plot_sage_results(metrics_dir, output_dir):
     val_accs = [fanout_data[k][0] for k in sizes_labels]
     test_accs = [fanout_data[k][1] for k in sizes_labels]
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(sizes_labels, val_accs, marker='o', label='Val Acc', color='#ff7f0e', linewidth=2)
-    ax.plot(sizes_labels, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2)
+    fig, ax = plt.subplots(figsize=(8, 5.8))
+    ax.plot(sizes_labels, val_accs, marker='o', label='Val Acc', color='#ff7f0e', linewidth=2.5, markersize=8)
+    ax.plot(sizes_labels, test_accs, marker='s', label='Test Acc', color='#1f77b4', linewidth=2.5, markersize=8)
     ax.set_xlabel('Layer-wise Sample Sizes (Fanout)')
     ax.set_ylabel('Accuracy (%)')
-    ax.set_title('GraphSAGE Performance vs. Neighbor Sampling Size (5 Epochs)')
+    ax.set_title('GraphSAGE Performance vs. Fanout (5 Epochs)')
     ax.legend()
     plt.tight_layout()
     save_path = os.path.join(output_dir, "sage_sampling_ablation.png")
