@@ -4,7 +4,14 @@ import json
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-sns.set_theme(style="whitegrid", font_scale=1.1)
+# Set high-visibility publication font scale
+sns.set_theme(style="whitegrid", font_scale=1.35)
+plt.rcParams['axes.titlesize'] = 14
+plt.rcParams['axes.labelsize'] = 13
+plt.rcParams['xtick.labelsize'] = 11
+plt.rcParams['ytick.labelsize'] = 11
+plt.rcParams['legend.fontsize'] = 11
+
 
 
 def plot_gcn_convergence(metrics_dir, output_dir):
@@ -199,27 +206,29 @@ def plot_comparative_profiling(metrics_dir, output_dir):
     with open(sage_path, 'r') as f:
         sage = json.load(f)
 
-    models = ['Full-Batch GCN\n(ogbn-arxiv)', 'Mini-Batch GraphSAGE\n(ogbn-products)']
+    models = ['Full-Batch GCN\n[ogbn-arxiv]\n(169K nodes, 1 step/ep)', 'Mini-Batch GraphSAGE\n[ogbn-products]\n(2.45M nodes, 193 steps/ep)']
     peak_memory = [gcn['peak_memory_mb'], sage['peak_memory_mb']]
     epoch_times = [gcn['avg_epoch_time_sec'], sage['avg_epoch_time_sec']]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 
     # Memory comparison
-    bars1 = ax1.bar(models, peak_memory, color=['#1f77b4', '#2ca02c'], width=0.5)
-    ax1.set_ylabel('Peak Memory Consumption (MB)')
-    ax1.set_title('Memory Scalability Comparison')
+    bars1 = ax1.bar(models, peak_memory, color=['#1f77b4', '#2ca02c'], width=0.45)
+    ax1.set_ylabel('Peak GPU Memory (MB)')
+    ax1.set_title('Cross-Dataset Peak Memory (torch.cuda)')
     for bar in bars1:
         yval = bar.get_height()
-        ax1.text(bar.get_x() + bar.get_width() / 2, yval + 10, f"{yval:.1f} MB", ha='center', va='bottom', fontweight='bold')
+        ax1.text(bar.get_x() + bar.get_width() / 2, yval + 100, f"{yval:.1f} MB", ha='center', va='bottom', fontweight='bold', fontsize=12)
+    ax1.set_ylim(0, max(peak_memory) * 1.18)
 
     # Runtime comparison
-    bars2 = ax2.bar(models, epoch_times, color=['#ff7f0e', '#d62728'], width=0.5)
+    bars2 = ax2.bar(models, epoch_times, color=['#ff7f0e', '#d62728'], width=0.45)
     ax2.set_ylabel('Average Runtime per Epoch (s)')
-    ax2.set_title('Training Speed Comparison')
+    ax2.set_title('Cross-Dataset Epoch Runtime')
     for bar in bars2:
         yval = bar.get_height()
-        ax2.text(bar.get_x() + bar.get_width() / 2, yval + 0.1, f"{yval:.2f} s", ha='center', va='bottom', fontweight='bold')
+        ax2.text(bar.get_x() + bar.get_width() / 2, yval + 1.2, f"{yval:.2f} s", ha='center', va='bottom', fontweight='bold', fontsize=12)
+    ax2.set_ylim(0, max(epoch_times) * 1.18)
 
     plt.tight_layout()
     save_path = os.path.join(output_dir, "comparative_profiling.png")
