@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument('--eval_batch_size', type=int, default=4096)
     parser.add_argument('--epochs', type=int, default=15)
     parser.add_argument('--device', type=str, default='cuda' if torch.cuda.is_available() else 'cpu')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--output_dir', type=str, default='./results/metrics')
     parser.add_argument('--exp_name', type=str, default='sage_baseline')
     return parser.parse_args()
@@ -39,6 +40,9 @@ def iterate_batches(indices, batch_size, shuffle=True):
 
 def main():
     args = parse_args()
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
     os.makedirs(args.output_dir, exist_ok=True)
     device = torch.device(args.device)
 

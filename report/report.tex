@@ -20,7 +20,7 @@
 \maketitle
 
 \begin{abstract}
-Graph Convolutional Networks (GCN) and GraphSAGE represent foundational paradigms in geometric deep learning. While full-batch GCN operates across the entire graph topology, it encounters steep memory scaling bottlenecks on large graphs. GraphSAGE addresses this via stochastic neighborhood sampling and mini-batch optimization. In this report, we evaluate both architectures across benchmark datasets: \texttt{ogbn-arxiv} and \texttt{ogbn-products}. We examine model depth, learning rates, mini-batch sizes, and neighbor sampling budgets under controlled training lengths, providing empirical profiling of runtime efficiency and GPU memory allocation.
+Graph Convolutional Networks (GCN) and GraphSAGE represent foundational paradigms in geometric deep learning. While full-batch GCN operates across the entire graph topology, it encounters steep memory scaling bottlenecks on large graphs. GraphSAGE addresses this via stochastic neighborhood sampling and mini-batch optimization. In this report, we evaluate full-batch GCN on \texttt{ogbn-arxiv} and mini-batch GraphSAGE on \texttt{ogbn-products}, demonstrating why full-batch GCN encounters memory exhaustion on million-scale graphs. We examine model depth, learning rates, mini-batch sizes, and neighbor sampling budgets under controlled training budgets, providing empirical profiling of runtime efficiency and GPU memory allocation alongside formal scalability bounds.
 \end{abstract}
 
 \section{Task 1: Full-Batch GCN Reproduction \& Convergence}
@@ -36,7 +36,7 @@ Full-batch GCN was evaluated on the \texttt{ogbn-arxiv} citation network ($|V| =
 \end{figure}
 
 \subsection{Convergence Dynamics}
-As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction during the initial 40 epochs (training loss declining from $4.21$ to $1.05$). Following transient validation fluctuations in early epochs, validation accuracy stabilizes around epoch 70. At 80 epochs, the baseline achieves $71.49\%$ validation accuracy and $70.88\%$ test accuracy; extending training to 100 epochs yields a peak validation accuracy of \textbf{71.82\%} and a test accuracy of \textbf{71.30\%}. This is within $\sim 0.4$ percentage points (pp) of the official Open Graph Benchmark (OGB) leaderboard baseline ($71.74\% \pm 0.29\%$), despite training for 100 epochs versus the 500 epochs used in the reference submission.
+As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction during the initial 40 epochs (training loss declining from $4.21$ to $1.05$). In the first 15 epochs, validation accuracy exhibits visible oscillation, likely reflecting batch normalization statistics stabilizing under full-batch gradient steps. A modest train--validation gap emerges in later epochs (training accuracy reaches $73.59\%$ while validation accuracy plateaus at $71.82\%$), reflecting mild overfitting typical of citation networks without label-propagation regularization. Following these dynamics, validation accuracy stabilizes around epoch 70. At 80 epochs, the baseline achieves $71.49\%$ validation accuracy and $70.88\%$ test accuracy; extending training to 100 epochs yields a peak validation accuracy of \textbf{71.82\%} and a test accuracy of \textbf{71.30\%}. This is within $\sim 0.4$ percentage points (pp) of the official Open Graph Benchmark (OGB) leaderboard baseline ($71.74\% \pm 0.29\%$), despite training for 100 epochs versus the 500 epochs used in the reference submission.
 
 \subsection{Hyperparameter Sensitivity Analysis}
 
@@ -81,11 +81,12 @@ LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
 \end{figure}
 
 \paragraph{Impact of Model Depth ($L$):} 
-Increasing depth from $L=2$ to $L=3$ expands the receptive field to 3 hops, improving test accuracy from $69.66\%$ to $70.88\%$. Selecting on validation accuracy, $L=4$ yields the highest value ($71.60\%$ val, $70.65\%$ test), marginally outperforming $L=3$ ($71.49\%$ val); the gap is $0.11$ pp and both are effectively indistinguishable at single-seed scale. Beyond $L=4$, both validation and test accuracy decline, reaching $70.32\%$ val at $L=6$---a $1.28$ pp drop from the $L=4$ peak (Table~\ref{tab:gcn_ablation}). Note that the 80-epoch ablations are slightly undertrained (the 100-epoch base reaches $71.82\%$ val), so rankings among close configurations may shift with longer budgets. Because batch normalization is employed, this degradation is attributed to a combination of optimization difficulty (e.g., gradient attenuation during backpropagation) alongside early oversmoothing tendencies, where recursive normalized graph convolutions:
+Increasing depth from $L=2$ to $L=3$ expands the receptive field to 3 hops, improving test accuracy from $69.66\%$ to $70.88\%$. Selecting on validation accuracy, $L=4$ yields the highest value ($71.60\%$ val, $70.65\%$ test), marginally outperforming $L=3$ ($71.49\%$ val); the gap is $0.11$ pp and both are effectively indistinguishable with one seed. Beyond $L=4$, both validation and test accuracy decline, reaching $70.32\%$ val at $L=6$---a $1.28$ pp drop from the $L=4$ peak (Table~\ref{tab:gcn_ablation}). Note that the 80-epoch ablations are slightly undertrained (the 100-epoch base reaches $71.82\%$ val), so rankings among close configurations may shift with longer budgets. We hypothesize that this performance drop stems from a combination of optimization challenges (such as gradient attenuation across deep stacks) and early oversmoothing. Specifically, the propagation rule (Equation~\ref{eq:gcn_layer}):
 \begin{equation}
 H^{(l+1)} = \sigma\left(\tilde{D}^{-\frac{1}{2}}\tilde{A}\tilde{D}^{-\frac{1}{2}} H^{(l)} W^{(l)}\right)
+\label{eq:gcn_layer}
 \end{equation}
-progressively smooth feature variance toward the stationary eigenvector proportional to $\sqrt{\tilde{d}_i}$. Peak allocated memory (\texttt{torch.cuda.max\_memory\_allocated}) grows linearly by $\approx 585$ MB per additional layer (from 5,445 MB at $L=2$ to 7,788 MB at $L=6$) due to caching intermediate activation maps for backpropagation.
+repeatedly averages representations over expanding neighborhoods, progressively smoothing node feature variance toward stationary eigenvectors proportional to $\sqrt{\tilde{d}_i}$. While batch normalization stabilizes layer activations against internal covariate shift, it may not fully counteract Dirichlet energy decay across distant hops. Peak allocated memory (\texttt{torch.cuda.max\_memory\_allocated}) grows linearly by $\approx 585$ MB per additional layer (from 5,445 MB at $L=2$ to 7,788 MB at $L=6$) due to caching intermediate activation maps for backpropagation.
 
 \paragraph{Impact of Learning Rate ($\eta$):}
 A small learning rate ($\eta = 0.001$) converges slowly within 80 epochs ($68.91\%$ val); note this ranking may shift with longer training. An aggressive rate ($\eta = 0.05$) exhibits gradient variance and plateaus at $69.33\%$ val. The val-optimal setting is $\eta = 0.005$ ($71.63\%$ val); however, the test gap versus $\eta = 0.01$ is only $0.01$ pp ($70.87\%$ vs.\ $70.88\%$)---the two configurations are not distinguishable with one seed. Small runtime variations ($0.013$--$0.015$s) reflect host scheduling noise.
@@ -110,7 +111,7 @@ To ensure fair comparison, all batch size and sampling ablations were evaluated 
 
 \begin{table}[htbp]
 \centering
-\caption{GraphSAGE Batch Size ($B$) and Fanout ($S$) Ablation on \texttt{ogbn-products} (5-epoch controlled budget; \textbf{bold} = val-optimal within group; italics = 15-ep base; single seed 42).}
+\caption{GraphSAGE Batch Size ($B$) and Fanout ($S$) Ablation on \texttt{ogbn-products} (5-epoch controlled budget; \textbf{bold} = best value in column within group; italics = 15-ep base; single seed 42).}
 \label{tab:sage_ablation}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
@@ -193,7 +194,7 @@ On \texttt{ogbn-arxiv}, Table~\ref{tab:gcn_ablation} demonstrates that full-batc
 \begin{equation}
 \Delta M_{\text{layer}} \approx 585\text{ MB} \times 14.5 \approx 8.5\text{ GB per layer}
 \end{equation}
-For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$ (a lower bound: the slope excludes the fixed overhead of $\approx 4.3$ GB extrapolated to $L=0$ from Table~\ref{tab:gcn_ablation}, which subsumes feature buffers, adjacency storage, and allocator caching). Adding edge indices for 61.8 million edges ($\approx 1\text{ GB}$) and intermediate aggregation buffers pushes the true requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError} (log in \texttt{results/oom\_log.txt} in the repository). In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
+For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$ (a lower bound: the slope excludes the fixed overhead of $\approx 4.3$ GB extrapolated to $L=0$ from Table~\ref{tab:gcn_ablation}, which subsumes feature buffers, adjacency storage, and allocator caching). Adding the symmetrized \texttt{edge\_index} for 61.8M undirected edges ($123.7\text{M}$ directed pairs $\times 2$ rows $\times 8$ bytes $\approx 1.98\text{ GB}$) and intermediate aggregation buffers pushes the true requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError} (log in \texttt{results/oom\_log.txt} in the repository). In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
 
 \subsection{Theoretical Scalability Analysis: Resolving Neighborhood Explosion}
 The memory divergence arises from the receptive field expansion during backpropagation:
@@ -201,24 +202,20 @@ The memory divergence arises from the receptive field expansion during backpropa
 \paragraph{Full-Batch Activation Bottleneck:}
 Full-batch GCN computes layer activations globally: $H^{(l+1)} = \sigma(\tilde{A}_{\text{norm}} H^{(l)} W^{(l)})$. Exact gradient computation requires retaining all intermediate activation tensors $\{H^{(0)}, \dots, H^{(L)}\}$, imposing an $\mathcal{O}(L \cdot |V| \cdot d)$ memory footprint.
 
-Furthermore, naive node-wise mini-batching without sampling fails due to exponential receptive field growth. In real-world graphs exhibiting power-law degree distributions ($d_{\text{avg}} = |E| / |V| \approx 25.3$ directed, $\approx 50.5$ undirected on products), an unconstrained $L$-hop receptive field expands with degree branching. For $L=3$, the theoretical neighborhood paths expand as $(50.5)^3 \approx 1.28 \times 10^5$; across a mini-batch of $B = 1024$ seed nodes, the union of receptive fields rapidly encompasses nearly the entire graph.
+Furthermore, naive node-wise mini-batching without sampling fails due to exponential receptive field growth. In real-world graphs exhibiting power-law degree distributions (average degree $d_{\text{avg}} = 2|E|/|V| \approx 50.5$, or $\approx 25.3$ undirected edge pairs per node on \texttt{ogbn-products}), an unconstrained $L$-hop receptive field expands exponentially. For $L=3$, the branching paths from a single seed expand as $(50.5)^3 \approx 1.28 \times 10^5$; across a mini-batch of $B = 1024$ seed nodes, the union of overlapping receptive fields can cover a large fraction of the active graph.
 
 \paragraph{Stochastic Neighborhood Sampling:}
-GraphSAGE restricts neighbor aggregation to a fixed sample budget $S_l$ at each hop $l \in \{1, \dots, L\}$. For a mini-batch of $B$ seed nodes, the computational subgraph is strictly bounded by:
+GraphSAGE restricts neighbor aggregation to a fixed sample budget $S_l$ at each hop $l \in \{1, \dots, L\}$. For a mini-batch of $B$ seed nodes, the outermost layer frontier is strictly bounded by:
 \begin{equation}
-\text{Sampled Seed Frontier} \le B \cdot \prod_{l=1}^L S_l
+|\mathcal{V}_L| \le B \cdot \prod_{l=1}^L S_l
+\label{eq:outer_frontier}
 \end{equation}
-This bounds per-step backpropagation activation memory to $\mathcal{O}(B \cdot d \cdot \prod_{l=1}^L S_l)$. While static node features and graph structure still occupy $\mathcal{O}(|V| \cdot d + |E|)$ host memory, gradient computation memory is decoupled from total graph size $|V|$, enabling scalable representation learning on graphs of arbitrary magnitude.
+while the total number of sampled nodes across all layers is bounded by $B \left(1 + \sum_{l=1}^L \prod_{i=1}^l S_i\right) = B(1 + S_1 + S_1 S_2 + \dots)$. This bounds per-step backpropagation activation memory to $\mathcal{O}\left(B \cdot d \cdot \sum_{l=1}^L \prod_{i=1}^l S_i\right)$, which is asymptotically dominated by the outermost frontier $\mathcal{O}(B \cdot d \cdot \prod_{l=1}^L S_l)$. While static node features and sampler indexing occupy a fixed GPU memory baseline ($\approx 980\text{ MB}$ for features in our setup, or CPU host memory in out-of-core pipelines), GPU activation memory during backpropagation is decoupled from total graph size $|V|$, enabling scalable representation learning on graphs of arbitrary magnitude.
 
 \section{Reproducibility \& Environment Details}
-All results are reproducible up to CUDA hardware nondeterminism using the scripts, random seed 42, and logs provided in the GitHub repository (\url{https://github.com/vaishvi-code/CSC591-038-_hw2}):
-\begin{itemize}
-    \item \textbf{Hardware}: NVIDIA Tesla T4 GPU (15.0 GB VRAM), Intel Xeon CPU @ 2.20GHz (2 vCPUs), 12.7 GB System RAM.
-    \item \textbf{Software}: Python 3.13, PyTorch 2.11.0+cu130, PyTorch Geometric 2.4.0, OGB 1.3.6.
-    \item \textbf{Optimization}: Adam optimizer, constant learning rate as specified, single seed 42.
-\end{itemize}
+All experiments were conducted on an NVIDIA Tesla T4 GPU (15.0 GB VRAM, Intel Xeon @ 2.20GHz, 2 vCPUs, 12.7 GB RAM) using Python 3.13, PyTorch 2.11, PyG 2.4.0, and OGB 1.3.6 under fixed random seed 42. Per-epoch training runtimes were timed with \texttt{torch.cuda.synchronize()}, isolating device execution from periodic evaluation overhead. GraphSAGE mini-batch sampling utilized multi-process PyG loaders (\texttt{num\_workers=4}); on a 2-vCPU instance, 4 worker processes cause CPU thread oversubscription and inter-process context switching overhead, likely compounding the CPU-sampling bottleneck in the $\approx 60$ s per-epoch runtime. Complete training scripts, reproduction commands, and logs are maintained in the GitHub repository (\url{https://github.com/vaishvi-code/CSC591-038-_hw2}).
 
 \section{Conclusion}
-This study reproduced GCN and GraphSAGE on OGB benchmarks. Selecting on validation accuracy, $L=4$ and $\eta=0.005$ led the GCN ablation grid, while $B=512$ and the largest-fanout setting $S=[15,10,5]$ led the GraphSAGE ablations (larger fanouts improve accuracy at the cost of compute, as expected). Within each group, mid-range configurations ($L \in \{3,4\}$, $\eta \in \{0.005, 0.01\}$, $B \in \{512, 1024\}$) show validation gaps below $0.2$ pp and are not distinguishable with one seed; note that $B=512$ and $B=1024$ differ by $1.44$ pp on test, so the indistinguishability holds on validation only. Profiling confirmed that stochastic neighborhood sampling prevents receptive field explosion during backpropagation, enabling tractable mini-batch training on large-scale graphs where full-batch GCN encounters out-of-memory constraints.
+This study reproduced GCN and GraphSAGE on OGB benchmarks. Selecting on validation accuracy, $L=4$ and $\eta=0.005$ led the GCN ablation grid, while $B=512$ and the largest-fanout setting $S=[15,10,5]$ led the GraphSAGE ablations (larger fanouts improve accuracy at the cost of compute, as expected). Within each group, mid-range configurations ($L \in \{3,4\}$, $\eta \in \{0.005, 0.01\}$, $B \in \{512, 1024\}$) show validation gaps below $0.2$ pp and are not distinguishable with one seed; note that $B=512$ and $B=1024$ differ by $1.44$ pp on test, so the indistinguishability holds on validation only. Profiling is consistent with the hypothesis that stochastic neighborhood sampling prevents receptive field explosion during backpropagation, enabling tractable mini-batch training on large-scale graphs where full-batch GCN encounters out-of-memory constraints.
 
 \end{document}
