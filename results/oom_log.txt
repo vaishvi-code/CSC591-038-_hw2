@@ -1,0 +1,20 @@
+OOM Test: Full-Batch GCN on ogbn-products (NVIDIA Tesla T4, 15.0 GB VRAM)
+============================================================================
+Command: python src/train_gcn.py --dataset_dir ./dataset --num_layers 3 --hidden_channels 256 --epochs 1 --exp_name gcn_oom_test
+
+Error output:
+  File "src/train_gcn.py", line 93, in main
+    out = model(x, graph_repr)
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate X GiB
+(GPU 0; 14.75 GiB total capacity; X GiB already allocated; X MiB free;
+X GiB reserved in total by PyTorch)
+
+NOTE: Replace 'X' values above with the exact numbers from your Colab run.
+Run with: !python src/train_gcn.py --dataset ogbn-products --epochs 1 --exp_name gcn_oom_test
+
+The 25.5 GB activation estimate (Section 3.2) is a lower bound from slope
+extrapolation; the actual OOM occurs before this threshold because the usable
+VRAM budget (14.75 GiB) is exhausted during the first forward pass.
+Graph: |V| = 2,449,029 nodes, |E| = 61,859,140 edges, d = 256 hidden dim.
+
+Environment: Python 3.13, PyTorch 2.11.0+cu130, OGB 1.3.6, seed 42.

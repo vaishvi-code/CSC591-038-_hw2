@@ -42,7 +42,7 @@ As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction d
 
 \begin{table}[htbp]
 \centering
-\caption{GCN Depth ($L$) and Learning Rate ($\eta$) Sensitivity on \texttt{ogbn-arxiv} (Controlled across 80 epochs; single seed 42).}
+\caption{GCN Depth ($L$) and Learning Rate ($\eta$) Sensitivity on \texttt{ogbn-arxiv} (80-epoch controlled budget; \textbf{bold} = val-optimal within group; italics = 100-ep base; single seed 42).}
 \label{tab:gcn_ablation}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
@@ -50,15 +50,15 @@ As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction d
 \textbf{Configuration} & \textbf{Val Acc (\%)} & \textbf{Test Acc (\%)} & \textbf{Peak Mem (MB)} & \textbf{Time (s/ep)} \\
 \midrule
 Depth $L = 2$ & 70.55 & 69.66 & 5445.7 & 0.0100 \\
-\textbf{Depth $L = 3$ (80 ep)} & \textbf{71.49} & \textbf{70.88} & 6030.5 & 0.0145 \\
+Depth $L = 3$ (80 ep, ref) & 71.49 & 70.88 & 6030.5 & 0.0145 \\
 \textit{Depth $L = 3$ (100 ep base)} & \textit{71.82} & \textit{71.30} & \textit{6030.5} & \textit{0.0145} \\
-Depth $L = 4$ & 71.60 & 70.65 & 6616.2 & 0.0156 \\
+\textbf{Depth $L = 4$} & \textbf{71.60} & 70.65 & 6616.2 & 0.0156 \\
 Depth $L = 5$ & 71.04 & 70.08 & 7201.7 & 0.0189 \\
 Depth $L = 6$ & 70.32 & 69.72 & 7788.0 & 0.0223 \\
 \midrule
 LR $\eta = 0.001$ & 68.91 & 67.71 & 6030.5 & 0.0146 \\
-LR $\eta = 0.005$ & 71.63 & 70.87 & 6030.5 & 0.0135 \\
-\textbf{LR $\eta = 0.010$ (Base)} & \textbf{71.49} & \textbf{70.88} & 6030.5 & 0.0145 \\
+\textbf{LR $\eta = 0.005$} & \textbf{71.63} & 70.87 & 6030.5 & 0.0135 \\
+LR $\eta = 0.010$ (80 ep, ref) & 71.49 & 70.88 & 6030.5 & 0.0145 \\
 LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
 \bottomrule
 \end{tabular}%
@@ -81,14 +81,14 @@ LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
 \end{figure}
 
 \paragraph{Impact of Model Depth ($L$):} 
-Increasing depth from $L=2$ to $L=3$ expands the receptive field to 3 hops, improving test accuracy from $69.66\%$ to $70.88\%$. Beyond $L=3$, test accuracy declines monotonically from $70.88\%$ ($L=3$) to $69.72\%$ ($L=6$), representing a $1.16$ pp drop (Table~\ref{tab:gcn_ablation}). Because batch normalization is employed, this degradation is attributed to a combination of optimization difficulty (e.g., gradient attenuation during backpropagation) alongside early oversmoothing tendencies, where recursive normalized graph convolutions:
+Increasing depth from $L=2$ to $L=3$ expands the receptive field to 3 hops, improving test accuracy from $69.66\%$ to $70.88\%$. Selecting on validation accuracy, $L=4$ yields the highest value ($71.60\%$ val, $70.65\%$ test), marginally outperforming $L=3$ ($71.49\%$ val); the gap is $0.11$ pp and both are effectively indistinguishable at single-seed scale. Beyond $L=4$, both validation and test accuracy decline, reaching $70.32\%$ val at $L=6$---a $1.28$ pp drop from the $L=4$ peak (Table~\ref{tab:gcn_ablation}). Note that the 80-epoch ablations are slightly undertrained (the 100-epoch base reaches $71.82\%$ val), so rankings among close configurations may shift with longer budgets. Because batch normalization is employed, this degradation is attributed to a combination of optimization difficulty (e.g., gradient attenuation during backpropagation) alongside early oversmoothing tendencies, where recursive normalized graph convolutions:
 \begin{equation}
 H^{(l+1)} = \sigma\left(\tilde{D}^{-\frac{1}{2}}\tilde{A}\tilde{D}^{-\frac{1}{2}} H^{(l)} W^{(l)}\right)
 \end{equation}
 progressively smooth feature variance toward the stationary eigenvector proportional to $\sqrt{\tilde{d}_i}$. Peak allocated memory (\texttt{torch.cuda.max\_memory\_allocated}) grows linearly by $\approx 585$ MB per additional layer (from 5,445 MB at $L=2$ to 7,788 MB at $L=6$) due to caching intermediate activation maps for backpropagation.
 
 \paragraph{Impact of Learning Rate ($\eta$):}
-A small learning rate ($\eta = 0.001$) converges slowly and underfits within 80 epochs ($67.71\%$). An aggressive learning rate ($\eta = 0.05$) exhibits higher gradient variance and plateaus at sub-optimal accuracy ($68.17\%$). Within the tested grid, $\eta = 0.01$ achieves the strongest convergence ($70.88\%$). Small runtime variations across LR settings ($0.013$--$0.015$s) reflect host scheduling noise.
+A small learning rate ($\eta = 0.001$) converges slowly within 80 epochs ($68.91\%$ val); note this ranking may shift with longer training. An aggressive rate ($\eta = 0.05$) exhibits gradient variance and plateaus at $69.33\%$ val. The val-optimal setting is $\eta = 0.005$ ($71.63\%$ val); however, the test gap versus $\eta = 0.01$ is only $0.01$ pp ($70.87\%$ vs.\ $70.88\%$)---the two configurations are not distinguishable with one seed. Small runtime variations ($0.013$--$0.015$s) reflect host scheduling noise.
 
 \section{Task 2: Mini-Batch GraphSAGE \& Neighborhood Sampling}
 
@@ -110,15 +110,15 @@ To ensure fair comparison, all batch size and sampling ablations were evaluated 
 
 \begin{table}[htbp]
 \centering
-\caption{GraphSAGE Batch Size ($B$) and Fanout ($S$) Ablation on \texttt{ogbn-products} (Evaluated fairly at 5 epochs; single seed 42).}
+\caption{GraphSAGE Batch Size ($B$) and Fanout ($S$) Ablation on \texttt{ogbn-products} (5-epoch controlled budget; \textbf{bold} = val-optimal within group; italics = 15-ep base; single seed 42).}
 \label{tab:sage_ablation}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Configuration} & \textbf{Val Acc (\%)} & \textbf{Test Acc (\%)} & \textbf{Peak Mem (MB)} & \textbf{Time (s/ep)} \\
 \midrule
-Batch $B = 512$ & 90.80 & 76.45 & 7113.8 & 66.29 \\
-\textbf{Batch $B = 1024$ (5 ep)} & \textbf{90.77} & \textbf{77.89} & 7109.7 & 59.45 \\
+\textbf{Batch $B = 512$} & \textbf{90.80} & 76.45 & 7113.8 & 66.29 \\
+Batch $B = 1024$ (5 ep, ref) & 90.77 & 77.89 & 7109.7 & 59.45 \\
 \textit{Batch $B = 1024$ (15 ep base)} & \textit{91.61} & \textit{78.61} & \textit{7109.7} & \textit{60.64} \\
 Batch $B = 2048$ & 90.62 & 77.33 & 9393.7 & 49.94 \\
 \midrule
@@ -146,7 +146,7 @@ Fanout $S=[10, 10, 5]$ & 90.37 & 77.24 & 6152.9 & 46.77 \\
 \end{figure}
 
 \paragraph{Impact of Batch Size ($B$):}
-Increasing batch size from 512 to 2048 decreases epoch runtime from $66.29$s to $49.94$s. With 196,615 training nodes, larger batches reduce total iteration steps per epoch ($\approx 385$ steps at $B=512$, $\approx 193$ at $B=1024$, and $\approx 97$ at $B=2048$), amortizing loop overhead and GPU kernel launch latency. Peak allocated memory remains nearly identical between $B=512$ and $B=1024$ ($\approx 7,110$ MB) because the peak memory ceiling is dominated by the full test evaluation pass ($B_{\text{eval}} = 4096$). At $B=2048$, the larger training multi-hop union frontier elevates peak training memory to $9,393.7$ MB. Within the tested 5-epoch budget, $B=1024$ achieves the strongest test accuracy ($77.89\%$).
+Increasing batch size from 512 to 2048 decreases epoch runtime from $66.29$s to $49.94$s. With 196,615 training nodes, larger batches reduce total iteration steps per epoch ($\approx 385$ steps at $B=512$, $\approx 193$ at $B=1024$, and $\approx 97$ at $B=2048$), amortizing loop overhead and GPU kernel launch latency. Peak allocated memory (measured as the global CUDA maximum across all training and evaluation steps) remains nearly identical between $B=512$ and $B=1024$ ($\approx 7,110$ MB); this ceiling is dominated by the evaluation pass ($B_{\text{eval}} = 4096$), as evidenced by near-identical peaks despite the $2\times$ training batch difference. At $B=2048$, the larger training multi-hop union frontier elevates peak memory to $9,393.7$ MB. By validation accuracy, $B=512$ marginally leads ($90.80\%$ vs.\ $90.77\%$); the difference is within single-seed noise and the two configurations are effectively indistinguishable.
 
 \paragraph{Impact of Sampling Fanout ($S$):}
 Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a \textbf{3.5$\times$ speedup} ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Note that measured memory scales by $1.9\times$ rather than the theoretical $6\times$ sampling ratio because static node features ($2.45\text{M} \times 100 \times 4\text{ bytes} \approx 980$ MB), graph indexing pointers, and PyTorch allocator caching establish a constant memory baseline.
@@ -158,7 +158,7 @@ Table~\ref{tab:comparative_profile} and Figure~\ref{fig:profiling} summarize per
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Benchmark Hardware Profile: Full-Batch GCN vs. Mini-Batch GraphSAGE.}
+\caption{Cross-Benchmark Hardware Profile: Full-Batch GCN vs.\ Mini-Batch GraphSAGE. $^\dagger$Accuracy rows are on \emph{different} datasets and are not directly comparable.}
 \label{tab:comparative_profile}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcc}
@@ -173,7 +173,7 @@ Time per Epoch & $0.0145$ s & $60.64$ s ($16.92$ s for $[5,5,5]$) \\
 Measured Peak GPU Mem & 6,030.5 MB & 7,109.7 MB (3,735.0 MB for $[5,5,5]$) \\
 Slope Extrapolation on Products & $\approx 25.5$ GB (Activations) & N/A (Fits on 15 GB GPU) \\
 Empirical Test on Products & Out-Of-Memory (OOM) & Runs stably \\
-Test Accuracy & 71.30\% (100 ep) & 78.61\% (15 ep) \\
+Test Accuracy$^\dagger$ & 71.30\% (arxiv, 100 ep) & 78.61\% (products, 15 ep) \\
 \bottomrule
 \end{tabular}%
 }
@@ -193,7 +193,7 @@ On \texttt{ogbn-arxiv}, Table~\ref{tab:gcn_ablation} demonstrates that full-batc
 \begin{equation}
 \Delta M_{\text{layer}} \approx 585\text{ MB} \times 14.5 \approx 8.5\text{ GB per layer}
 \end{equation}
-For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$. Adding edge indices for 61.8 million edges ($\approx 1\text{ GB}$) and intermediate aggregation buffers pushes the memory requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError}. In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
+For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$ (a lower bound: the slope excludes the fixed overhead of $\approx 4.3$ GB extrapolated to $L=0$ from Table~\ref{tab:gcn_ablation}, which subsumes feature buffers, adjacency storage, and allocator caching). Adding edge indices for 61.8 million edges ($\approx 1\text{ GB}$) and intermediate aggregation buffers pushes the true requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError} (log in \texttt{results/oom\_log.txt} in the repository). In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
 
 \subsection{Theoretical Scalability Analysis: Resolving Neighborhood Explosion}
 The memory divergence arises from the receptive field expansion during backpropagation:
@@ -219,6 +219,6 @@ All results are reproducible up to CUDA hardware nondeterminism using the script
 \end{itemize}
 
 \section{Conclusion}
-This study reproduced GCN and GraphSAGE on OGB benchmarks, observing that $L=3, \eta=0.01$ and $B=1024, S=[15,10,5]$ provided the most effective configurations within the explored parameter grid under controlled training lengths. Profiling confirmed that stochastic neighborhood sampling prevents receptive field explosion during backpropagation, enabling tractable mini-batch training on large-scale graphs where full-batch GCN encounters out-of-memory constraints.
+This study reproduced GCN and GraphSAGE on OGB benchmarks. Selecting on validation accuracy, $L=4$ and $\eta=0.005$ led the GCN ablation grid, while $B=512$ and the largest-fanout setting $S=[15,10,5]$ led the GraphSAGE ablations (larger fanouts improve accuracy at the cost of compute, as expected). Within each group, mid-range configurations ($L \in \{3,4\}$, $\eta \in \{0.005, 0.01\}$, $B \in \{512, 1024\}$) show validation gaps below $0.2$ pp and are not distinguishable with one seed; note that $B=512$ and $B=1024$ differ by $1.44$ pp on test, so the indistinguishability holds on validation only. Profiling confirmed that stochastic neighborhood sampling prevents receptive field explosion during backpropagation, enabling tractable mini-batch training on large-scale graphs where full-batch GCN encounters out-of-memory constraints.
 
 \end{document}

@@ -91,6 +91,7 @@ def main():
     total_start_time = time.time()
     best_val_acc = 0.0
     best_test_acc = 0.0
+    train_peak_mb = 0.0  # training-only peak, snapshotted before eval each epoch
 
     @torch.no_grad()
     def evaluate(eval_indices, batch_size=4096):
@@ -147,6 +148,14 @@ def main():
         epoch_time = time.time() - epoch_start
         history['epoch_times'].append(epoch_time)
 
+        # Snapshot training-only CUDA peak BEFORE the eval pass inflates it.
+        # max_memory_allocated is monotonically increasing (reset once at start),
+        # so this correctly captures the peak reached during training.
+        if device.type == 'cuda':
+            cur_train_peak = torch.cuda.max_memory_allocated(device) / (1024 ** 2)
+            if cur_train_peak > train_peak_mb:
+                train_peak_mb = cur_train_peak
+
         # Evaluate validation
         val_acc = evaluate(val_idx, batch_size=args.eval_batch_size)
 
@@ -177,7 +186,9 @@ def main():
         import psutil
         peak_mem = psutil.Process().memory_info().rss / (1024 ** 2)
 
-    history['peak_memory_mb'] = peak_mem
+    history['peak_memory_mb'] = peak_mem            # global peak (includes eval pass)
+    history['eval_peak_memory_mb'] = peak_mem        # alias for clarity
+    history['train_peak_memory_mb'] = train_peak_mb  # training-only peak (before eval)
     history['total_time_sec'] = total_time
     history['avg_epoch_time_sec'] = sum(history['epoch_times']) / len(history['epoch_times'])
     history['best_val_acc'] = best_val_acc

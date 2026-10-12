@@ -94,6 +94,8 @@ def main():
         train_loss = F.nll_loss(out[train_idx], y[train_idx])
         train_loss.backward()
         optimizer.step()
+        if device.type == 'cuda':
+            torch.cuda.synchronize()  # wait for GPU to finish before stopping the clock
 
         epoch_time = time.time() - epoch_start
         history['epoch_times'].append(epoch_time)
