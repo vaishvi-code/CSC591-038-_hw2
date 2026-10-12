@@ -36,7 +36,7 @@ Full-batch GCN was evaluated on the \texttt{ogbn-arxiv} citation network ($|V| =
 \end{figure}
 
 \subsection{Convergence Dynamics}
-As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction during the initial 40 epochs (training loss declining from $4.21$ to $1.05$). In the first 15 epochs, validation accuracy exhibits visible oscillation, likely reflecting batch normalization statistics stabilizing under full-batch gradient steps. A modest train--validation gap emerges in later epochs (training accuracy reaches $73.59\%$ while validation accuracy plateaus at $71.82\%$), reflecting mild overfitting typical of citation networks without label-propagation regularization. Following these dynamics, validation accuracy stabilizes around epoch 70. At 80 epochs, the baseline achieves $71.49\%$ validation accuracy and $70.88\%$ test accuracy; extending training to 100 epochs yields a peak validation accuracy of \textbf{71.82\%} and a test accuracy of \textbf{71.30\%}. This is within $\sim 0.4$ percentage points (pp) of the official Open Graph Benchmark (OGB) leaderboard baseline ($71.74\% \pm 0.29\%$), despite training for 100 epochs versus the 500 epochs used in the reference submission.
+As illustrated in Figure~\ref{fig:gcn_conv}, GCN exhibits rapid loss reduction during the initial 40 epochs (training loss declining from $4.21$ to $1.05$). In the first 15 epochs, validation accuracy exhibits visible oscillation, likely reflecting batch normalization statistics stabilizing under full-batch gradient steps. A modest train--validation gap emerges in later epochs (training accuracy reaches $73.59\%$ while validation accuracy plateaus at $71.82\%$), reflecting mild overfitting typical of citation networks without label-propagation regularization. Following these dynamics, validation accuracy stabilizes around epoch 70. Across 5 independent runs (seeds 42--46), 100-epoch GCN achieves a mean validation accuracy of \textbf{71.92\% $\pm$ 0.10\%} and test accuracy of \textbf{71.16\% $\pm$ 0.26\%} (with seed 42 reaching $71.84\%$ val, $70.75\%$ test; seed 43 reaching $72.08\%$ val, $71.31\%$ test). This closely replicates the official Open Graph Benchmark (OGB) leaderboard baseline ($71.74\% \pm 0.29\%$) with comparable variance, despite training for 100 epochs versus the reference 500 epochs.
 
 \subsection{Hyperparameter Sensitivity Analysis}
 
@@ -124,8 +124,10 @@ Batch $B = 1024$ (5 ep, ref) & 90.77 & 77.89 & 7109.7 & 59.45 \\
 Batch $B = 2048$ & 90.62 & 77.33 & 9393.7 & 49.94 \\
 \midrule
 Fanout $S=[5, 5, 5]$ & 89.05 & 75.92 & \textbf{3735.0} & \textbf{16.92} \\
+Fanout $S=[5, 5, 15]$ & 89.27 & 75.52 & 5539.7 & 35.35 \\
+Fanout $S=[15, 5, 5]$ & \textbf{90.80} & 77.29 & 5454.2 & 37.31 \\
 Fanout $S=[10, 10, 5]$ & 90.37 & 77.24 & 6152.9 & 46.77 \\
-\textbf{Fanout $S=[15, 10, 5]$ (5 ep)} & \textbf{90.77} & \textbf{77.89} & 7109.7 & 59.45 \\
+\textbf{Fanout $S=[15, 10, 5]$ (5 ep)} & 90.77 & \textbf{77.89} & 7109.7 & 59.45 \\
 \bottomrule
 \end{tabular}%
 }
@@ -150,7 +152,7 @@ Fanout $S=[10, 10, 5]$ & 90.37 & 77.24 & 6152.9 & 46.77 \\
 Increasing batch size from 512 to 2048 decreases epoch runtime from $66.29$s to $49.94$s. With 196,615 training nodes, larger batches reduce total iteration steps per epoch ($\approx 385$ steps at $B=512$, $\approx 193$ at $B=1024$, and $\approx 97$ at $B=2048$), amortizing loop overhead and GPU kernel launch latency. Peak allocated memory (measured as the global CUDA maximum across all training and evaluation steps) remains nearly identical between $B=512$ and $B=1024$ ($\approx 7,110$ MB); this ceiling is dominated by the evaluation pass ($B_{\text{eval}} = 4096$), as evidenced by near-identical peaks despite the $2\times$ training batch difference. At $B=2048$, the larger training multi-hop union frontier elevates peak memory to $9,393.7$ MB. By validation accuracy, $B=512$ marginally leads ($90.80\%$ vs.\ $90.77\%$); the difference is within single-seed noise and the two configurations are effectively indistinguishable.
 
 \paragraph{Impact of Sampling Fanout ($S$):}
-Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a \textbf{3.5$\times$ speedup} ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Note that measured memory scales by $1.9\times$ rather than the theoretical $6\times$ sampling ratio because static node features ($2.45\text{M} \times 100 \times 4\text{ bytes} \approx 980$ MB), graph indexing pointers, and PyTorch allocator caching establish a constant memory baseline.
+Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a \textbf{3.5$\times$ speedup} ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Crucially, evaluating asymmetric layer-wise budgets with identical total path products ($15 \times 5 \times 5 = 5 \times 5 \times 15 = 375$ paths) isolates the role of layer depth: front-loading the budget at hop 1 ($S=[15, 5, 5]$) achieves $90.80\%$ val and $77.29\%$ test in $37.31$s, whereas back-loading at hop 3 ($S=[5, 5, 15]$) degrades to $89.27\%$ val and $75.52\%$ test (a $1.77$ pp test deficit). Dense sampling at immediate neighbors captures vital local community structure, while heavy 3rd-hop sampling aggregates diluted features across distant nodes. Note that measured memory scales by $1.9\times$ rather than the theoretical $6\times$ ratio because static node features ($2.45\text{M} \times 100 \times 4\text{ bytes} \approx 980$ MB), graph indexing pointers, and allocator caching establish a constant memory baseline.
 
 \section{Task 3: Comparative Profiling \& Scalability Discussion}
 

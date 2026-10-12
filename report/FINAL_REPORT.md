@@ -73,8 +73,10 @@ GraphSAGE converged steadily over 15 epochs (Figure 3), achieving **91.61%** val
 | *Batch $B = 1024$ (15 ep base)* | *91.61%* | *78.61%* | *7,109.7 MB* | *60.64 s* |
 | Batch $B = 2048$ | 90.62% | 77.33% | 9,393.7 MB | 49.94 s |
 | Fanout $S=[5, 5, 5]$ | 89.05% | 75.92% | **3,735.0 MB** | **16.92 s** |
+| Fanout $S=[5, 5, 15]$ | 89.27% | 75.52% | 5,539.7 MB | 35.35 s |
+| Fanout $S=[15, 5, 5]$ | **90.80%** | 77.29% | 5,454.2 MB | 37.31 s |
 | Fanout $S=[10, 10, 5]$ | 90.37% | 77.24% | 6,152.9 MB | 46.77 s |
-| **Fanout $S=[15, 10, 5]$ (5 ep)** | **90.77%** | **77.89%** | **7,109.7 MB** | **59.45 s** |
+| **Fanout $S=[15, 10, 5]$ (5 ep)** | 90.77% | **77.89%** | 7,109.7 MB | 59.45 s |
 
 <p align="center">
   <img src="../results/plots/sage_batch_ablation.png" width="48%" />
@@ -84,7 +86,7 @@ GraphSAGE converged steadily over 15 epochs (Figure 3), achieving **91.61%** val
 
 #### Discussion:
 - **Impact of Batch Size ($B$)**: Increasing batch size from 512 to 2048 decreases epoch runtime from $66.29$s to $49.94$s. With 196,615 training nodes, larger batches reduce total iteration steps per epoch ($\approx 385$ steps at $B=512$, $\approx 193$ at $B=1024$, and $\approx 97$ at $B=2048$), amortizing loop overhead and GPU kernel launch latency. Peak allocated memory remains nearly identical between $B=512$ and $B=1024$ ($\approx 7,110$ MB) because the peak memory ceiling is dominated by the full test evaluation pass ($B_{\text{eval}} = 4096$). At $B=2048$, the larger training multi-hop union frontier elevates peak training memory to $9,393.7$ MB. Within the tested 5-epoch budget, $B=1024$ achieves the strongest test accuracy ($77.89\%$).
-- **Impact of Sampling Fanout ($S$)**: Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a **3.5$\times$ speedup** ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Note that measured memory scales by $1.9\times$ rather than the theoretical $6\times$ sampling ratio because static node features ($2.45\text{M} \times 100 \times 4\text{ bytes} \approx 980$ MB), graph indexing pointers, and PyTorch allocator caching establish a constant memory baseline.
+- **Impact of Sampling Fanout ($S$)**: Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a **3.5$\times$ speedup** ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Crucially, evaluating asymmetric layer-wise budgets with identical total path products ($15 \times 5 \times 5 = 5 \times 5 \times 15 = 375$ paths) isolates the role of layer depth: front-loading the budget at hop 1 ($S=[15, 5, 5]$) achieves $90.80\%$ val and $77.29\%$ test in $37.31$s, whereas back-loading at hop 3 ($S=[5, 5, 15]$) degrades to $89.27\%$ val and $75.52\%$ test (a $1.77$ pp test deficit). Dense sampling at immediate neighbors captures vital local community structure, while heavy 3rd-hop sampling aggregates diluted features across distant nodes. Note that measured memory scales by $1.9\times$ rather than the theoretical $6\times$ sampling ratio because static node features ($2.45\text{M} \times 100 \times 4\text{ bytes} \approx 980$ MB), graph indexing pointers, and PyTorch allocator caching establish a constant memory baseline.
 
 ---
 
