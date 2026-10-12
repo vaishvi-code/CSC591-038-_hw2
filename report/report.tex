@@ -1,5 +1,5 @@
 \documentclass[10pt,twocolumn]{article}
-\usepackage[margin=0.75in]{geometry}
+\usepackage[margin=0.68in]{geometry}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -8,7 +8,12 @@
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{microtype}
-\captionsetup{skip=4pt}
+\captionsetup{skip=2pt, font=small}
+\setlength{\textfloatsep}{5pt plus 1pt minus 1pt}
+\setlength{\floatsep}{4pt plus 1pt minus 1pt}
+\setlength{\intextsep}{4pt plus 1pt minus 1pt}
+\setlength{\abovecaptionskip}{2pt}
+\setlength{\belowcaptionskip}{1pt}
 
 \graphicspath{{plots/}{../results/plots/}{results/plots/}{./}}
 
@@ -77,7 +82,7 @@ LR $\eta = 0.050$ & 69.33 & 68.17 & 6030.5 & 0.0132 \\
         \includegraphics[width=\linewidth]{gcn_lr_ablation.png}
         \caption{LR ($\eta$)}
     \end{subfigure}
-    \caption{GCN accuracy across model depths and learning rates.}
+    \caption{GCN accuracy across model depths (including $L=3$ ref) and learning rates (including $\eta=0.01$ ref) at 80 epochs.}
     \label{fig:gcn_ablations}
 \end{figure}
 
@@ -153,7 +158,7 @@ Fanout $S=[15, 10, 5]$ (5 ep, ref) & 90.77 & \textbf{77.89} & 7109.7 & 59.45 \\
 Increasing batch size from 512 to 2048 decreases epoch runtime from $66.29$s to $49.94$s. With 196,615 training nodes, larger batches reduce total iteration steps per epoch ($\approx 385$ steps at $B=512$, $\approx 193$ at $B=1024$, and $\approx 97$ at $B=2048$), amortizing loop overhead and GPU kernel launch latency. Peak allocated memory remains nearly identical between $B=512$ and $B=1024$ ($\approx 7,110$ MB); because peak memory was tracked across the combined training and evaluation loop without a reset between phases, this flat memory plateau most likely reflects an eval-dominated peak memory confound ($B_{\text{eval}} = 4096$) that overshadows training differences at smaller batches. At $B=2048$, the larger training multi-hop union frontier finally exceeds the evaluation footprint, elevating peak memory to $9,393.7$ MB. By validation accuracy, $B=512$ marginally leads ($90.80\%$ vs.\ $90.77\%$); the difference is within single-seed noise and the two configurations are effectively indistinguishable.
 
 \paragraph{Impact of Sampling Fanout ($S$):}
-Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a \textbf{3.5$\times$ speedup} ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Crucially, evaluating asymmetric layer-wise budgets with identical total path products ($15 \times 5 \times 5 = 5 \times 5 \times 15 = 375$ paths) isolates the role of hop placement: front-loading the budget at hop 1 ($S=[15, 5, 5]$) achieves $90.80\%$ val and $77.29\%$ test in $37.31$s, whereas back-loading at hop 3 ($S=[5, 5, 15]$) yields $89.27\%$ val and $75.52\%$ test ($1.77$ pp test deficit). Dense sampling at immediate neighbors captures vital local graph topology, whereas heavy 3rd-hop sampling aggregates diluted features across distant nodes. Empirically, a rough linear fit ($n=5$ configs) indicates approximately linear scaling with sampled path product according to $M \approx 2.9\text{ GB} + (\text{path product} \times 5.6\text{ MB})$, predicting $\approx 5.0\text{ GB}$ for the 375-path configurations (measured $\approx 5.5\text{ GB}$) and $\approx 5.7\text{ GB}$ for 500 paths (measured $6.15\text{ GB}$); this reflects sampled batch tensors atop a fixed baseline of framework context, static indexing, and evaluation buffers.
+Comparing fanout configurations at 5 epochs reveals a clear trade-off: reducing fanout from $[15, 10, 5]$ to $[5, 5, 5]$ provides a \textbf{3.5$\times$ speedup} ($59.45$s $\to 16.92$s) and reduces peak allocated memory by $47\%$ ($7,109.7$ MB $\to 3,735.0$ MB), at the cost of a $1.97$ pp drop in test accuracy ($77.89\% \to 75.92\%$). Crucially, evaluating asymmetric layer-wise budgets with identical total path products ($15 \times 5 \times 5 = 5 \times 5 \times 15 = 375$ paths) isolates the role of hop placement: front-loading the budget at hop 1 ($S=[15, 5, 5]$) achieves $90.80\%$ val and $77.29\%$ test in $37.31$s, whereas back-loading at hop 3 ($S=[5, 5, 15]$) yields $89.27\%$ val and $75.52\%$ test ($1.77$ pp test deficit). One plausible hypothesis is that dense sampling at immediate neighbors ($S_1$) may better capture vital local graph topology, whereas heavy 3rd-hop sampling ($S_3$) aggregates increasingly diluted features across distant nodes; however, multi-seed replication is necessary to verify this effect. Empirically, a rough linear fit ($n=5$ configs) indicates approximately linear scaling with sampled path product according to $M \approx 2.9\text{ GB} + (\text{path product} \times 5.6\text{ MB})$, predicting $\approx 5.0\text{ GB}$ for the 375-path configurations (measured $\approx 5.5\text{ GB}$) and $\approx 5.7\text{ GB}$ for 500 paths (measured $6.15\text{ GB}$); this reflects sampled batch tensors atop a fixed baseline of static indexing and evaluation buffers.
 
 \section{Task 3: Comparative Profiling \& Scalability Discussion}
 
@@ -162,7 +167,7 @@ Table~\ref{tab:comparative_profile} and Figure~\ref{fig:profiling} summarize per
 
 \begin{table}[htbp]
 \centering
-\caption{Cross-Benchmark Hardware Profile: Full-Batch GCN vs.\ Mini-Batch GraphSAGE. $^\dagger$Accuracy rows are on \emph{different} datasets and are not directly comparable.}
+\caption{Cross-Benchmark Hardware Profile: Full-Batch GCN vs.\ Mini-Batch GraphSAGE (5-epoch budget). Peak GPU memory is measured across the full epoch (training + evaluation). $^\dagger$Accuracy rows are on \emph{different} datasets and are not directly comparable.}
 \label{tab:comparative_profile}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{lcc}
@@ -172,8 +177,8 @@ Table~\ref{tab:comparative_profile} and Figure~\ref{fig:profiling} summarize per
 Dataset & \texttt{ogbn-arxiv} & \texttt{ogbn-products} \\
 Graph Scale ($|V|, |E|$) & 169K nodes, 1.16M edges & \textbf{2.45M nodes, 61.8M edges} \\
 Training Steps per Epoch & 1 step (full graph) & $\approx 193$ steps (mini-batch) \\
-Time per Step & $\approx 14.5$ ms & $\approx 310$ ms \\
-Time per Epoch & $0.0145$ s & $60.64$ s ($16.92$ s for $[5,5,5]$) \\
+Time per Step & $\approx 14.5$ ms & $\approx 308$ ms \\
+Time per Epoch & $0.0145$ s & $59.45$ s ($16.92$ s for $[5,5,5]$) \\
 Measured Peak GPU Mem & 6,030.5 MB & 7,109.7 MB (3,735.0 MB for $[5,5,5]$) \\
 Empirical Test on Products & Out-Of-Memory (OOM) & Runs stably \\
 Slope Extrapolation on Products & $\approx 25.5$ GB (Activations) & N/A (Fits on 15 GB GPU) \\
@@ -197,7 +202,7 @@ On \texttt{ogbn-arxiv}, Table~\ref{tab:gcn_ablation} demonstrates that full-batc
 \begin{equation}
 \Delta M_{\text{layer}} \approx 585\text{ MB} \times 14.5 \approx 8.5\text{ GB per layer}
 \end{equation}
-For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$ (a lower bound: the slope excludes the unattributed baseline overhead of $\approx 4.3$ GB extrapolated to $L=0$ from Table~\ref{tab:gcn_ablation}, representing PyTorch runtime context and full-graph evaluation buffers, while static graph tensors themselves account for only $\approx 100$ MB; note that if parts of this baseline scale with $|V|$, such as full-graph evaluation buffers, the $25.5$ GB estimate is a conservative lower bound, further reinforcing the OOM result). Adding the symmetrized \texttt{edge\_index} for 61.8M undirected edges ($123.7\text{M}$ directed pairs $\times 2$ rows $\times 8$ bytes $\approx 1.98\text{ GB}$) and intermediate aggregation buffers pushes the true requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError} (log in \texttt{results/oom\_log.txt} in the repository). In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
+For a 3-layer model, caching activations alone requires an estimated $\approx 25.5\text{ GB}$ (a lower bound: the slope excludes the unattributed baseline overhead of $\approx 4.3$ GB extrapolated to $L=0$ from Table~\ref{tab:gcn_ablation}, representing static graph tensors, Adam optimizer state tensors, and full-graph evaluation temporary buffers rather than CUDA driver runtime context, which \texttt{max\_memory\_allocated} does not track; note that if parts of this baseline scale with $|V|$, such as full-graph evaluation buffers, the $25.5$ GB estimate is a conservative lower bound, further reinforcing the OOM result). Adding the symmetrized \texttt{edge\_index} for 61.8M undirected edges ($123.7\text{M}$ directed pairs $\times 2$ rows $\times 8$ bytes $\approx 1.98\text{ GB}$) and intermediate aggregation buffers pushes the true requirement well beyond 30 GB. When executing full-batch GCN on \texttt{ogbn-products} on an NVIDIA Tesla T4 GPU (15.0 GB VRAM), PyTorch immediately halts with a \texttt{torch.cuda.OutOfMemoryError} (log in \texttt{results/oom\_log.txt} in the repository). In contrast, mini-batch GraphSAGE trains stably on the same GPU, consuming $7.1$ GB VRAM (and only $3.7$ GB under $[5,5,5]$).
 
 \subsection{Theoretical Scalability Analysis: Resolving Neighborhood Explosion}
 The memory divergence arises from the receptive field expansion during backpropagation:
@@ -216,9 +221,9 @@ GraphSAGE restricts neighbor aggregation to a fixed sample budget $S_l$ at each 
 while the total number of sampled nodes across all layers is bounded by $B \left(1 + \sum_{l=1}^L \prod_{i=1}^l S_i\right) = B(1 + S_1 + S_1 S_2 + \dots)$. This bounds per-step backpropagation activation memory to $\mathcal{O}\left(B \cdot d \cdot \sum_{l=1}^L \prod_{i=1}^l S_i\right)$, which is asymptotically dominated by the outermost frontier $\mathcal{O}(B \cdot d \cdot \prod_{l=1}^L S_l)$. While static node features and sampler indexing occupy a fixed GPU memory baseline ($\approx 980\text{ MB}$ for features in our setup, or CPU host memory in out-of-core pipelines), GPU activation memory during backpropagation is decoupled from total graph size $|V|$, enabling scalable representation learning on graphs of arbitrary magnitude.
 
 \section{Reproducibility \& Environment Details}
-Experiments were executed on an NVIDIA Tesla T4 GPU (15.0 GB VRAM, 2 vCPUs) with Python 3.11, PyTorch 2.11, PyG 2.4.0, and OGB 1.3.6 under fixed seed 42. GCN step times use \texttt{torch.cuda.synchronize()}; GraphSAGE epoch times reflect sampling and training (excluding periodic evaluation passes). Multi-process loaders (\texttt{num\_workers=4}) on 2 vCPUs introduce sampling bottlenecks due to CPU oversubscription. Training scripts, reproduction commands, logs, and OOM traces are in the GitHub repository (\url{https://github.com/vaishvi-code/CSC591-038-_hw2}).
+Experiments were executed on an NVIDIA Tesla T4 GPU (15.0 GB VRAM, 2 vCPUs) with Python 3.11, PyTorch 2.11, PyG 2.4.0, and OGB 1.3.6 under fixed seed 42 across all single-run baselines and ablations, supplemented by seeds 42--46 for the GCN multi-seed evaluation in Section 1.2. GCN step times use \texttt{torch.cuda.synchronize()} on FP32 operations; GraphSAGE epoch times reflect sampling and training (excluding periodic evaluation passes). Multi-process loaders on 2 vCPUs introduce sampling bottlenecks due to CPU oversubscription. Complete code, reproduction scripts, and OOM logs are maintained in the GitHub repository (\url{https://github.com/vaishvi-code/CSC591-038-_hw2}).
 
 \section{Conclusion}
-This study reproduced GCN and GraphSAGE on OGB benchmarks. On validation accuracy, $L=4$ and $\eta=0.005$ led the GCN ablation grid, while $S=[15,5,5]$ achieved the highest validation accuracy ($90.80\%$) and faster runtime ($37.3$s) for GraphSAGE, with $S=[15,10,5]$ offering highest test accuracy ($77.89\%$). Mid-range configurations ($L \in \{3,4\}$, $\eta \in \{0.005, 0.01\}$, $B \in \{512, 1024\}$) show validation gaps below $0.2$ pp, within empirical run-to-run variation ($\sigma \approx 0.10$ pp). Profiling confirms that stochastic neighborhood sampling bounds the backpropagation frontier and resolves receptive field explosion, enabling scalable mini-batch training where full-batch GCN encounters out-of-memory limits.
+This study reproduced GCN and GraphSAGE on OGB benchmarks. On validation accuracy, $L=4$ and $\eta=0.005$ led the GCN ablation grid, while $S=[15,5,5]$ achieved the highest validation accuracy ($90.80\%$) and faster runtime ($37.3$s) for GraphSAGE, with $S=[15,10,5]$ offering highest test accuracy ($77.89\%$). For GCN, validation differences between mid-range configurations ($0.11$ pp for $L \in \{3,4\}$; $0.14$ pp for $\eta \in \{0.005, 0.01\}$) are modest ($< 0.2$ pp) and close to the baseline validation run-to-run variation ($\sigma_{\text{val}} \approx 0.10$ pp across 5 seeds). For GraphSAGE, validation accuracy between $B=512$ ($90.80\%$) and $B=1024$ ($90.77\%$) differs by only $0.03$ pp, though multi-seed replication would be needed to establish formal variance bounds on products. Profiling confirms that stochastic neighborhood sampling bounds the backpropagation frontier and resolves receptive field explosion, enabling scalable mini-batch training where full-batch GCN encounters out-of-memory limits.
 
 \end{document}

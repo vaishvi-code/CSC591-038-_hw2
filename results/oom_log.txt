@@ -17,4 +17,4 @@ extrapolation; the actual OOM occurs before this threshold because the usable
 VRAM budget (14.75 GiB) is exhausted during the first forward pass.
 Graph: |V| = 2,449,029 nodes, |E| = 61,859,140 edges, d = 256 hidden dim.
 
-Environment: Python 3.13, PyTorch 2.11.0+cu130, OGB 1.3.6, seed 42.
+Environment: Python 3.11, PyTorch 2.11.0, OGB 1.3.6, seed 42.

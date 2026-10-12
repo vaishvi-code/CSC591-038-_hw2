@@ -223,7 +223,16 @@ def plot_comparative_profiling(metrics_dir, output_dir):
 
     models = ['Full-Batch GCN\n[ogbn-arxiv]\n(169K nodes, 1 step/ep)', 'Mini-Batch GraphSAGE\n[ogbn-products]\n(2.45M nodes, 193 steps/ep)']
     peak_memory = [gcn['peak_memory_mb'], sage['peak_memory_mb']]
-    epoch_times = [gcn['avg_epoch_time_sec'], sage['avg_epoch_time_sec']]
+    
+    # Use 5-epoch reference time (59.45 s) to align with Table 3 and ablations
+    sage_ref_path = os.path.join(metrics_dir, "sage_batch_1024.json")
+    if os.path.exists(sage_ref_path):
+        with open(sage_ref_path, 'r') as f:
+            sage_ref = json.load(f)
+        sage_time = sage_ref['avg_epoch_time_sec']
+    else:
+        sage_time = sage['avg_epoch_time_sec']
+    epoch_times = [gcn['avg_epoch_time_sec'], sage_time]
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
 

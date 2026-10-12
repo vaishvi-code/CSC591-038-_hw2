@@ -58,43 +58,55 @@ pip install -r requirements.txt
 ### 2. Task 1: Full-Batch GCN on `ogbn-arxiv` (Table 1, Figures 1 & 2)
 ```bash
 # Baseline GCN Reference (Depth 3, LR 0.01, 100 epochs) -> Fig 1, Table 1
-python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 100 --exp_name gcn_baseline
+python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 100 --seed 42 --exp_name gcn_baseline
 
-# 5-Seed Variance Evaluation (Seeds 42-46) -> Table 3
+# 5-Seed Variance Evaluation (Seeds 42-46, 100 epochs) -> Table 3
 for seed in 42 43 44 45 46; do
   python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 100 --seed $seed --exp_name gcn_seed_$seed
 done
 
-# Depth Sensitivity (L = 2, 4, 5, 6; 80 epochs) -> Table 1, Fig 2(a)
-python src/train_gcn.py --num_layers 2 --epochs 80 --exp_name gcn_depth_2
-python src/train_gcn.py --num_layers 4 --epochs 80 --exp_name gcn_depth_4
-python src/train_gcn.py --num_layers 5 --epochs 80 --exp_name gcn_depth_5
-python src/train_gcn.py --num_layers 6 --epochs 80 --exp_name gcn_depth_6
+# Depth Sensitivity (L = 2, 3, 4, 5, 6; 80-epoch controlled budget) -> Table 1, Fig 2(a)
+# Note: L = 3 at 80 epochs is the reference architecture checkpoint for controlled comparison
+python src/train_gcn.py --num_layers 2 --lr 0.01 --epochs 80 --seed 42 --exp_name gcn_depth_2
+python src/train_gcn.py --num_layers 3 --lr 0.01 --epochs 80 --seed 42 --exp_name gcn_depth_3
+python src/train_gcn.py --num_layers 4 --lr 0.01 --epochs 80 --seed 42 --exp_name gcn_depth_4
+python src/train_gcn.py --num_layers 5 --lr 0.01 --epochs 80 --seed 42 --exp_name gcn_depth_5
+python src/train_gcn.py --num_layers 6 --lr 0.01 --epochs 80 --seed 42 --exp_name gcn_depth_6
 
-# Learning Rate Sensitivity (eta = 0.001, 0.005, 0.05; 80 epochs) -> Table 1, Fig 2(b)
-python src/train_gcn.py --lr 0.001 --epochs 80 --exp_name gcn_lr_0.001
-python src/train_gcn.py --lr 0.005 --epochs 80 --exp_name gcn_lr_0.005
-python src/train_gcn.py --lr 0.050 --epochs 80 --exp_name gcn_lr_0.05
+# Learning Rate Sensitivity (eta = 0.001, 0.005, 0.01, 0.05; 80 epochs) -> Table 1, Fig 2(b)
+# Note: eta = 0.01 at 80 epochs matches gcn_depth_3 as the baseline setting
+python src/train_gcn.py --num_layers 3 --lr 0.001 --epochs 80 --seed 42 --exp_name gcn_lr_0.001
+python src/train_gcn.py --num_layers 3 --lr 0.005 --epochs 80 --seed 42 --exp_name gcn_lr_0.005
+python src/train_gcn.py --num_layers 3 --lr 0.010 --epochs 80 --seed 42 --exp_name gcn_lr_0.01
+python src/train_gcn.py --num_layers 3 --lr 0.050 --epochs 80 --seed 42 --exp_name gcn_lr_0.05
 ```
 
 ### 3. Task 2: Mini-Batch GraphSAGE on `ogbn-products` (Table 2, Figures 3 & 4)
+*All GraphSAGE runs default to seed 42 and 4 data loader workers (`--seed 42`).*
 ```bash
 # Baseline GraphSAGE Reference (Fanout 15,10,5, Batch Size 1024, 15 epochs) -> Fig 3, Table 2
-python src/train_sage.py --num_layers 3 --sizes 15,10,5 --batch_size 1024 --epochs 15 --exp_name sage_baseline
+python src/train_sage.py --num_layers 3 --sizes 15,10,5 --batch_size 1024 --epochs 15 --seed 42 --exp_name sage_baseline
 
-# Batch Size Sensitivity (B = 512, 2048; 5 epochs) -> Table 2, Fig 4(a)
-python src/train_sage.py --batch_size 512 --epochs 5 --exp_name sage_batch_512
-python src/train_sage.py --batch_size 2048 --epochs 5 --exp_name sage_batch_2048
+# Batch Size Sensitivity (B = 512, 1024, 2048; 5-epoch controlled budget) -> Table 2, Fig 4(a)
+# Note: B = 1024 at 5 epochs serves as the ablation reference row (or epoch 5 of sage_baseline)
+python src/train_sage.py --sizes 15,10,5 --batch_size 512 --epochs 5 --seed 42 --exp_name sage_batch_512
+python src/train_sage.py --sizes 15,10,5 --batch_size 1024 --epochs 5 --seed 42 --exp_name sage_batch_1024
+python src/train_sage.py --sizes 15,10,5 --batch_size 2048 --epochs 5 --seed 42 --exp_name sage_batch_2048
 
-# Neighbor Sample Fanout Sensitivity (5 epochs) -> Table 2, Fig 4(b)
-python src/train_sage.py --sizes 5,5,5 --epochs 5 --exp_name sage_sampling_5_5_5
-python src/train_sage.py --sizes 5,5,15 --epochs 5 --exp_name sage_sampling_5_5_15
-python src/train_sage.py --sizes 15,5,5 --epochs 5 --exp_name sage_sampling_15_5_5
-python src/train_sage.py --sizes 10,10,5 --epochs 5 --exp_name sage_sampling_10_10_5
+# Neighbor Sample Fanout Sensitivity (5-epoch budget) -> Table 2, Fig 4(b)
+python src/train_sage.py --sizes 5,5,5 --batch_size 1024 --epochs 5 --seed 42 --exp_name sage_sampling_5_5_5
+python src/train_sage.py --sizes 5,5,15 --batch_size 1024 --epochs 5 --seed 42 --exp_name sage_sampling_5_5_15
+python src/train_sage.py --sizes 15,5,5 --batch_size 1024 --epochs 5 --seed 42 --exp_name sage_sampling_15_5_5
+python src/train_sage.py --sizes 10,10,5 --batch_size 1024 --epochs 5 --seed 42 --exp_name sage_sampling_10_10_5
+# Note: [15,10,5] at 5 epochs corresponds to sage_batch_1024 above.
 ```
 
-### 4. Task 3: Generate Figures & Comparative Profiling (Table 3, Figure 5)
+### 4. Task 3: Full-Batch OOM Test & Comparative Profiling (Table 3, Figure 5)
 ```bash
+# Full-Batch GCN on ogbn-products (Hardware Exhaustion / OOM Test) -> Table 3, results/oom_log.txt
+python src/train_gcn.py --dataset ogbn-products --epochs 1 --exp_name gcn_oom_test
+
+# Generate All Figures & Comparative Profiling Charts
 python src/plot_results.py
 ```
 This generates:
