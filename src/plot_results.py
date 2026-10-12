@@ -234,7 +234,7 @@ def plot_comparative_profiling(metrics_dir, output_dir):
         sage_time = sage['avg_epoch_time_sec']
     epoch_times = [gcn['avg_epoch_time_sec'], sage_time]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.5))
 
     # Memory comparison
     bars1 = ax1.bar(models, peak_memory, color=['#1f77b4', '#2ca02c'], width=0.45)
