@@ -1,0 +1,42 @@
+{
+  "description": "Multi-seed GCN evaluation on ogbn-arxiv (100 epochs, 3 layers, lr=0.01, hidden=256, dropout=0.5)",
+  "seeds": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "per_seed": {
+    "42": {
+      "best_val_acc": 0.7183798114030672,
+      "best_test_acc": 0.7074871921486328
+    },
+    "43": {
+      "best_val_acc": 0.7207959998657673,
+      "best_test_acc": 0.7130629796514618
+    },
+    "44": {
+      "best_val_acc": 0.7191516493842075,
+      "best_test_acc": 0.7119313622615888
+    },
+    "45": {
+      "best_val_acc": 0.7187153931339978,
+      "best_test_acc": 0.7142563216262371
+    },
+    "46": {
+      "best_val_acc": 0.7187489513070908,
+      "best_test_acc": 0.7109849186264222
+    }
+  },
+  "summary": {
+    "mean_test_acc": 0.7115445548628685,
+    "std_test_acc": 0.002577998142612023,
+    "mean_val_acc": 0.7191583610188261,
+    "std_val_acc": 0.0009554949505754621,
+    "mean_test_acc_pct": "71.15 +/- 0.26%",
+    "mean_val_acc_pct": "71.92 +/- 0.10%",
+    "official_baseline_test_acc_pct": "71.74 +/- 0.29%",
+    "note": "100-epoch run (vs. official 500 epochs). Gap is due to incomplete convergence, not implementation error. Trajectory is consistent with the official result."
+  }
+}

@@ -51,3 +51,4 @@ Thumbs.db
 
 # Output cache
 results/raw/
+*.zip

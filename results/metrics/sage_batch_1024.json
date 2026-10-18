@@ -59,5 +59,7 @@
   "total_time_sec": 297.2692651748657,
   "avg_epoch_time_sec": 59.45385303497314,
   "best_val_acc": 0.9076876128474429,
-  "best_test_acc": 0.778859974578542
+  "best_test_acc": 0.778859974578542,
+  "ablation_note": "Batch size ablation (baseline config): 5-epoch slice. Same first 5 epochs as sage_baseline; full 15-epoch run is in sage_baseline.json.",
+  "comparison_note": "All ablation runs use 5 epochs for compute budget reasons. Compare epoch-1 to epoch-5 trends, not final accuracy, against the 15-epoch sage_baseline.json."
 }

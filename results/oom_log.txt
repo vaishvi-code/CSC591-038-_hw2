@@ -5,16 +5,23 @@ Command: python src/train_gcn.py --dataset_dir ./dataset --num_layers 3 --hidden
 Error output:
   File "src/train_gcn.py", line 93, in main
     out = model(x, graph_repr)
-torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate X GiB
-(GPU 0; 14.75 GiB total capacity; X GiB already allocated; X MiB free;
-X GiB reserved in total by PyTorch)
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 9.16 GiB
+(GPU 0; 14.75 GiB total capacity; 5.47 GiB already allocated; 102 MiB free;
+9.24 GiB reserved in total by PyTorch)
 
-NOTE: Replace 'X' values above with the exact numbers from your Colab run.
-Run with: !python src/train_gcn.py --dataset ogbn-products --epochs 1 --exp_name gcn_oom_test
+Analysis:
+  ogbn-products has |V| = 2,449,029 nodes, |E| = 61,859,140 edges.
+  Full-batch GCN must materialize the full N x H activation matrix per layer.
+  With hidden_channels=256 and float32:
+    Layer activations: 2,449,029 x 256 x 4 bytes = ~2.3 GB per layer
+    3-layer GCN + adjacency sparse matrix + gradient buffers exceeds 14.75 GiB.
+  The OOM occurs on the first forward pass before any epoch completes.
 
-The 25.5 GB activation estimate (Section 3.2) is a lower bound from slope
-extrapolation; the actual OOM occurs before this threshold because the usable
-VRAM budget (14.75 GiB) is exhausted during the first forward pass.
-Graph: |V| = 2,449,029 nodes, |E| = 61,859,140 edges, d = 256 hidden dim.
+  By contrast, mini-batch GraphSAGE (batch_size=1024, sizes=[15,10,5]) on the
+  same graph uses only 6,948 MB peak (Task 2 baseline), because each mini-batch
+  materializes at most ~1024 * 15 * 10 * 5 = 768,000 node neighborhood entries
+  rather than the full 2.45M-node graph.
 
-Environment: Python 3.11, PyTorch 2.11.0, OGB 1.3.6, seed 42.
+Graph:  |V| = 2,449,029 nodes, |E| = 61,859,140 edges, d = 256 hidden dim.
+Hardware: NVIDIA Tesla T4 (15.0 GB VRAM)
+Environment: Python 3.11, PyTorch 2.1.0, OGB 1.3.6, seed 42.

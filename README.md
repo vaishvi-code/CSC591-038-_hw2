@@ -103,11 +103,17 @@ python src/train_sage.py --sizes 10,10,5 --batch_size 1024 --epochs 5 --seed 42 
 
 ### 4. Task 3: Full-Batch OOM Test & Comparative Profiling (Table 3, Figure 5)
 ```bash
-# Full-Batch GCN on ogbn-products (Hardware Exhaustion / OOM Test) -> Table 3, results/oom_log.txt
-python src/train_gcn.py --dataset ogbn-products --epochs 1 --exp_name gcn_oom_test
+# Full-Batch GCN on ogbn-products (OOM Test) -> results/oom_log.txt
+# Note: train_gcn.py uses --dataset_dir (not --dataset)
+python src/train_gcn.py --dataset_dir ./dataset --num_layers 3 \
+  --hidden_channels 256 --epochs 1 --seed 42 \
+  --exp_name gcn_oom_test 2>&1 | tee results/oom_log.txt
 
 # Generate All Figures & Comparative Profiling Charts
 python src/plot_results.py
+
+# Verify all table values match the JSON logs (exits 0 on success, 1 on mismatch)
+python src/validate_tables.py
 ```
 This generates:
 - `gcn_convergence.png`: Training/Validation/Test loss & accuracy over 100 epochs (Fig 1).

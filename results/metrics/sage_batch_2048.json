@@ -59,5 +59,7 @@
   "total_time_sec": 1009.8268077373505,
   "avg_epoch_time_sec": 49.939839220047,
   "best_val_acc": 0.9061617882664089,
-  "best_test_acc": 0.7732989741497299
+  "best_test_acc": 0.7732989741497299,
+  "ablation_note": "Batch size ablation: 5-epoch run. Larger batches -> fewer updates per epoch, faster per-epoch wall-clock (~50s). Higher peak memory (9394 MB vs 7110 MB baseline).",
+  "comparison_note": "All ablation runs use 5 epochs for compute budget reasons. Compare epoch-1 to epoch-5 trends, not final accuracy, against the 15-epoch sage_baseline.json."
 }

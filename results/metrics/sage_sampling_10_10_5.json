@@ -59,5 +59,7 @@
   "total_time_sec": 745.9060859680176,
   "avg_epoch_time_sec": 46.774986791610715,
   "best_val_acc": 0.9037204689367546,
-  "best_test_acc": 0.7723744753378872
+  "best_test_acc": 0.7723744753378872,
+  "ablation_note": "Sampling ablation: sizes=[10,10,5], 5-epoch run. Moderate fanout, intermediate memory (6153 MB) and speed (~47s/ep).",
+  "comparison_note": "All ablation runs use 5 epochs for compute budget reasons. Compare epoch-1 to epoch-5 trends, not final accuracy, against the 15-epoch sage_baseline.json."
 }
